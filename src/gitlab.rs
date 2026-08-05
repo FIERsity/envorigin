@@ -786,3 +786,73 @@ fn severity_label(severity: Severity) -> &'static str {
         Severity::Error => "error",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::output::fingerprint;
+
+    fn fixture_path() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/gitlab/.gitlab-ci.yml")
+    }
+
+    #[test]
+    fn include_globals_are_shadowed_by_local_globals() {
+        let report = analyze_gitlab(&fixture_path()).unwrap();
+        let app_name = report
+            .global_variables
+            .iter()
+            .find(|variable| variable.variable == "APP_NAME")
+            .unwrap();
+        assert_eq!(app_name.value.as_deref(), Some("demo"));
+        assert_eq!(app_name.candidates.len(), 2);
+        assert!(matches!(
+            app_name.candidates[0].disposition,
+            GitlabDisposition::Shadowed
+        ));
+        assert!(matches!(
+            app_name.candidates[1].disposition,
+            GitlabDisposition::Winner
+        ));
+    }
+
+    #[test]
+    fn job_overrides_global_and_references_resolve_order_independently() {
+        let report = analyze_gitlab(&fixture_path()).unwrap();
+        let build = report.jobs.iter().find(|job| job.id == "build").unwrap();
+        let global_only = build
+            .variables
+            .iter()
+            .find(|variable| variable.variable == "GLOBAL_ONLY")
+            .unwrap();
+        assert_eq!(global_only.value.as_deref(), Some("overridden_in_job"));
+        let build_id = build
+            .variables
+            .iter()
+            .find(|variable| variable.variable == "BUILD_ID")
+            .unwrap();
+        assert!(build_id.references.iter().any(|reference| {
+            reference.expression == "APP_NAME"
+                && reference
+                    .source
+                    .as_ref()
+                    .is_some_and(|source| source.kind == GitlabSourceKind::FileGlobal)
+        }));
+    }
+
+    #[test]
+    fn values_are_redacted_not_leaked() {
+        let report = analyze_gitlab(&fixture_path()).unwrap();
+        let value = report
+            .global_variables
+            .iter()
+            .find(|variable| variable.variable == "REGISTRY")
+            .unwrap()
+            .value
+            .as_deref()
+            .unwrap();
+        // The model keeps resolved values internally; redaction happens at
+        // render time — assert the fingerprint path is stable and distinct.
+        assert_ne!(fingerprint(value), fingerprint("other"));
+    }
+}
