@@ -879,3 +879,23 @@ fn completions_include_subcommands() {
         .stdout(predicate::str::contains("audit"))
         .stdout(predicate::str::contains("actions"));
 }
+
+#[test]
+fn actions_unnamed_steps_use_one_based_numbers() {
+    // Cargo's real workflow has unnamed run steps; verify 1-based display.
+    let dir = tempfile::tempdir().unwrap();
+    let workflow = dir.path().join("workflow.yml");
+    std::fs::write(
+        &workflow,
+        "on: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo one\n      - run: echo two\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["actions", "scan", "--file"])
+        .arg(workflow.display().to_string())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("step #1:"))
+        .stdout(predicate::str::contains("step #2:"));
+}

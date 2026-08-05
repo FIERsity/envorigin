@@ -382,7 +382,7 @@ Semantics notes:
 cargo test
 ```
 
-89 tests: unit tests for the dotenv parser, the interpolator, Compose
+90 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
@@ -410,6 +410,9 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
       graph (solid = winner, dashed = shadowed, dashed-derived = dependency);
       output validated against the mermaid renderer
 - [x] LSP server + VS Code extension (hover, go-to-definition, live diagnostics)
+- [x] real CI config validation: rust-lang/cargo's 372-line workflow and
+      astral-sh/uv's benchmark workflow (with `workflow_dispatch` inputs)
+      parse, scan, and audit cleanly; unnamed steps display 1-based numbers
 - [x] GitLab CI variables support (include < global < job; `$VAR`
       reference tracking; predefined variables)
 - [x] CircleCI env support (executor < job, parameters, contexts external)
