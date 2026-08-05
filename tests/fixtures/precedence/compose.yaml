@@ -1,0 +1,13 @@
+services:
+  web:
+    image: nginx
+    env_file:
+      - ./env/web.env
+      - path: ./env/overrides.env
+        required: false
+    environment:
+      P: compose_explicit
+      W: compose_explicit
+      Y:
+  worker:
+    image: busybox

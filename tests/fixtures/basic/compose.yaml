@@ -1,0 +1,8 @@
+services:
+  web:
+    image: nginx
+    environment:
+      MODE: production
+      FROM_ENV:
+      SHELL_OVERRIDE:
+      D:

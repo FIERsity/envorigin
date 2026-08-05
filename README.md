@@ -1,0 +1,176 @@
+# EnvOrigin
+
+Explain where Docker Compose environment variables actually come from.
+
+> “Why is `DATABASE_URL` suddenly `localhost` in staging? It was fine yesterday.”
+
+A variable in a Compose service can be defined in five places at once — your
+shell, `.env`, `--env-file`, `services.*.env_file`, and `services.*.environment`
+— and Compose resolves each one differently depending on how the others are
+written. When the value changes, figuring out *which* layer won (and which
+layers you just wasted an hour editing) is manual archaeology.
+
+EnvOrigin reads your project exactly the way Compose does and answers the
+question per variable, with the full provenance chain and line numbers:
+
+```text
+$ envorigin explain P -s web --show-values
+
+P for service web
+state: present
+value: "compose_explicit"
+winner: service environment (compose.yaml:9)
+candidates:
+  - [shadowed] service env_file (env/web.env:1) = "from_web_env"
+  - [shadowed] service env_file (env/overrides.env:1) = "from_overrides_env"
+  - [winner] service environment (compose.yaml:9) = "compose_explicit"
+```
+
+Values are redacted by default — you get a short SHA-256 fingerprint instead of
+the secret. Pass `--show-values` only when you mean it.
+
+## Why
+
+Docker's own precedence rules are subtle and their failure modes are loud:
+
+| Layer (low → high) | Writes a value | Notes |
+| --- | --- | --- |
+| Compose file defaults | rarely | only via interpolation |
+| Shell / process environment | when present | wins over `.env` |
+| `.env` / `--env-file` | interpolation only | **never injected into the container directly** |
+| `services.*.env_file` | injected | later files override earlier ones |
+| `services.*.environment` | injected | explicit values override everything |
+| `docker compose config` | ground truth | what Compose actually computed |
+
+Two consequences that bite teams every week:
+
+1. **`.env` is not an injection layer.** Values there only reach the container
+   through `${VAR}` interpolation or an unset `environment: - VAR` entry.
+   Editing `.env` and seeing no effect is the most common false fix.
+2. **The winner is invisible.** If `environment:` overrides a value from
+   `env_file`, Compose gives you no hint that the env_file line is dead code.
+   EnvOrigin marks it `shadowed` so you can delete it with confidence.
+
+## Install
+
+```sh
+cargo install --git https://github.com/FIERsity/envorigin
+# or build locally
+cargo build --release
+```
+
+Requires Rust 1.85+.
+
+## Usage
+
+```text
+EnvOrigin 0.1.0
+Explain where Docker Compose environment variables come from
+
+Usage: envorigin <COMMAND>
+
+Commands:
+  scan     List the variables configured for each Compose service
+  explain  Explain the winning and shadowed sources for one variable
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+Common flags (for both subcommands):
+
+| Flag | Meaning |
+| --- | --- |
+| `-f, --file <PATH>` | Compose file to analyze (default `compose.yaml`) |
+| `--env-file <PATH>` | Compose interpolation file; repeatable, later files win |
+| `--project-directory <PATH>` | override the Compose project directory |
+| `--host-env-file <PATH>` | overlay the shell from a dotenv file (reproducible diagnosis) |
+| `--no-docker-check` | skip comparing with `docker compose config` |
+| `--show-values` | reveal plaintext values (default: redacted) |
+| `--format json` | machine-readable output |
+
+### `scan`
+
+```text
+$ envorigin scan
+
+EnvOrigin 0.1.0
+compose: /app/compose.yaml
+docker verification: verified
+interpolation files: /app/.env
+
+service web (2 present, 4 tracked)
+  D                        absent  —                        ← service environment (compose.yaml:8)
+  FROM_ENV                 set     <redacted sha256:b3aa92d6> ← service environment (compose.yaml:6)
+  MODE                     set     <redacted sha256:ab8e18ef> ← service environment (compose.yaml:5)
+```
+
+`docker verification` reports whether your understanding matched
+`docker compose config --format json`:
+
+- `verified` — EnvOrigin's model agrees with Docker (run it on a real project
+  and it should normally say this; if it doesn't, that's a bug — please report)
+- `unavailable` — Docker CLI not installed; analysis is unverified
+- `failed` — Docker ran but disagreed, with a `docker-divergence` diagnostic
+  on each affected variable
+- `skipped` — `--no-docker-check` was passed
+
+### `explain`
+
+```text
+$ envorigin explain T -s web --show-values
+
+T for service web
+state: present
+value: "from_project_env"
+winner: service env_file (env/web.env:4)
+derived from:
+  - default .env (.env:2)
+```
+
+`T=${S}` in `env/web.env` interpolated `S` from `.env` — the `derived from`
+block is EnvOrigin's answer to "but *why* is it that value?" for interpolated
+variables.
+
+## Design
+
+- **`src/compose.rs`** — Compose model (env_file specs, environment forms) and
+  per-variable candidate resolution in Compose's own order.
+- **`src/interpolation.rs`** — a Compose-flavored interpolator: `$VAR`,
+  `${VAR}`, `${VAR:-word}`, `${VAR:?msg}`, `${VAR:+alt}`, `$$` escaping, with
+  per-reference source tracking.
+- **`src/dotenv.rs`** — dotenv parsing: quoting, `export` prefixes, comments,
+  unset entries, trailing-content warnings.
+- **`src/docker.rs`** — spawns `docker compose config --format json` and
+  reconciles Docker's canonical model against the local model.
+- **`src/output.rs`** — human and JSON renderers, default redaction with
+  SHA-256 fingerprints.
+
+Deliberate v0.1 scope: Compose files only (no standalone `.env` tooling), and
+the two rules from Compose's interpolation set — `COMPOSE_FILE` and
+`COMPOSE_ENV_FILES` — produce warnings rather than automatic expansion.
+
+## Testing
+
+```sh
+cargo test
+```
+
+16 tests: unit tests for the dotenv parser, the interpolator, Compose
+normalization, and the Docker canonical extraction; plus end-to-end CLI tests
+against `tests/fixtures/{basic,precedence}` that assert redaction, derivation
+tracking, and the full shadowing chain. CI runs `fmt` + `clippy -D warnings` +
+tests on Ubuntu.
+
+## Roadmap
+
+- [ ] GitHub Actions adapter: explain `env:` steps and job-level `env` files
+- [ ] `--env-file` precedence diagnostics (later files winning silently)
+- [ ] `COMPOSE_ENV_FILES` support
+- [ ] `env_file` `format: raw` end-to-end coverage
+
+## License
+
+MIT
