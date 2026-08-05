@@ -4,6 +4,16 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-08-06
+
+### Added
+
+- `audit --format github` — GitHub Actions workflow commands; problems are
+  annotated on the offending file lines in pull requests
+  (severity maps to error/warning/notice; % and newlines escaped).
+- CI integration guide in the README (GitHub Actions / GitLab CI /
+  CircleCI snippets).
+
 ## [0.7.0] - 2026-08-06
 
 ### Added
