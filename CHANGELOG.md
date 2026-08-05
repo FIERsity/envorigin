@@ -4,6 +4,30 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-08-06
+
+### Added
+
+- `envorigin completions <shell>` — bash/zsh/fish completion scripts
+  (installed automatically by the Homebrew formula).
+- Rules engine `[patterns]` — per-variable value format validation
+  (`pattern-mismatch` error; invalid regexes reported, not panicked).
+- `scripts/release.sh` — one-command release pipeline (verified end to end
+  on 0.4.0 and 0.4.1).
+- Real-world example in the README (outline production compose audit).
+
+### Fixed
+
+- LSP routed only `.yml` workflow files, silently dropping `.yaml`;
+  both suffixes now route. Step-level diagnostics (`GITHUB_ENV` writes)
+  now surface in the editor.
+- Unnamed action steps displayed the 0-based internal index; now 1-based.
+
+### Testing
+
+- Unit coverage for the Compose, GitLab, and CircleCI analyzers, the
+  audit classification predicates, and LSP routing (28 unit tests total).
+
 ## [0.4.1] - 2026-08-06
 
 ### Fixed
