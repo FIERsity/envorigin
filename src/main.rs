@@ -19,7 +19,7 @@ use envorigin::diff::{diff_files, diff_human, diff_json};
 use envorigin::gitlab::{
     analyze_gitlab, gitlab_human, gitlab_json, gitlab_variable_human, gitlab_variable_json,
 };
-use envorigin::graph::{actions_graph, project_graph};
+use envorigin::graph::{actions_graph, circleci_graph, gitlab_graph, project_graph};
 use envorigin::model::AnalysisError;
 use envorigin::output::{
     explanation_human, explanation_json, project_human, project_json, service_human,
@@ -132,6 +132,10 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                     }
                 }))
             }
+            CircleciCommand::Graph(graph) => {
+                let report = analyze_circleci(&graph.file)?;
+                Ok(outcome(circleci_graph(&report)))
+            }
             CircleciCommand::Audit(audit) => {
                 let report = analyze_circleci(&audit.common.file)?;
                 let rules = load_rules(&audit.config)?;
@@ -162,6 +166,10 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                         gitlab_variable_json(&report, variable, explain.common.show_values)
                     }
                 }))
+            }
+            GitlabCommand::Graph(graph) => {
+                let report = analyze_gitlab(&graph.file)?;
+                Ok(outcome(gitlab_graph(&report)))
             }
             GitlabCommand::Audit(audit) => {
                 let report = analyze_gitlab(&audit.common.file)?;
