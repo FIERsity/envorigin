@@ -2,7 +2,7 @@
   "name": "envorigin-vscode",
   "displayName": "EnvOrigin",
   "description": "Explain where environment variables come from — hover, go-to-definition, and live diagnostics for Docker Compose, GitHub Actions, GitLab CI, and CircleCI configs.",
-  "version": "0.3.0",
+  "version": "0.5.1",
   "publisher": "fier",
   "license": "MIT",
   "engines": {
