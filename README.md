@@ -59,8 +59,9 @@ Two consequences that bite teams every week:
 ## Install
 
 ```sh
+brew install FIERsity/envorigin/envorigin
+# or from source
 cargo install --git https://github.com/FIERsity/envorigin
-# or build locally
 cargo build --release
 ```
 
