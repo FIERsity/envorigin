@@ -5,8 +5,13 @@ use envorigin::actions::{
     actions_human, actions_json, actions_variable_human, actions_variable_json,
 };
 use envorigin::audit::{audit_human, audit_project, audit_workflow, AuditIssue};
+use envorigin::circleci::{
+    analyze_circleci, circleci_human, circleci_json, circleci_variable_human,
+    circleci_variable_json,
+};
 use envorigin::cli::{
-    ActionsCommand, Cli, Command, CommonArgs, FailLevel, GitlabCommand, OutputFormat,
+    ActionsCommand, CircleciCommand, Cli, Command, CommonArgs, FailLevel, GitlabCommand,
+    OutputFormat,
 };
 use envorigin::diff::{diff_files, diff_human, diff_json};
 use envorigin::gitlab::{
@@ -98,6 +103,27 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             let report = analyze(&options(&args.common))?;
             Ok(outcome(project_graph(&report)))
         }
+        Command::Circleci(args) => match args.command {
+            CircleciCommand::Scan(scan) => {
+                let report = analyze_circleci(&scan.file)?;
+                Ok(outcome(match scan.format {
+                    OutputFormat::Human => circleci_human(&report, scan.show_values),
+                    OutputFormat::Json => circleci_json(&report, scan.show_values),
+                }))
+            }
+            CircleciCommand::Explain(explain) => {
+                let report = analyze_circleci(&explain.common.file)?;
+                let variable = report.explain(&explain.job, &explain.variable)?;
+                Ok(outcome(match explain.common.format {
+                    OutputFormat::Human => {
+                        circleci_variable_human(&report, variable, explain.common.show_values)
+                    }
+                    OutputFormat::Json => {
+                        circleci_variable_json(&report, variable, explain.common.show_values)
+                    }
+                }))
+            }
+        },
         Command::Gitlab(args) => match args.command {
             GitlabCommand::Scan(scan) => {
                 let report = analyze_gitlab(&scan.file)?;

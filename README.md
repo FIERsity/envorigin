@@ -81,6 +81,7 @@ Commands:
   diff     Compare environment drift across dotenv files
   graph    Render a mermaid provenance graph of the environment
   gitlab   Analyze a GitLab CI configuration's variables
+  circleci Analyze a CircleCI configuration's environment variables
   actions  Analyze a GitHub Actions workflow's environment variables
   help     Print this message or the help of the given subcommand(s)
 
@@ -275,6 +276,26 @@ references:
   - $APP_NAME → global variables (.gitlab-ci.yml:7)
 ```
 
+
+### `circleci`
+
+Layered resolution for `.circleci/config.yml`: executor `environment:` < job
+`environment:` / `env:` list. `<< parameters.X >>` references resolve to the
+job's `parameters:` declaration (default shown); `<< pipeline.X >>` and
+`context:` are organization/API state and are reported as external.
+`CIRCLE_*` predefined variables are labelled; values interpolate shell-style.
+
+```text
+$ envorigin circleci explain TARGET -j build --show-values
+
+TARGET in .circleci/config.yml
+state: set
+value: "<< parameters.target >>"
+winner: job environment (.circleci/config.yml:21)
+references:
+  - parameters.target → job parameter (.circleci/config.yml:15)
+```
+
 ## Design
 
 - **`src/compose.rs`** — Compose model (env_file specs, environment forms) and
@@ -311,7 +332,7 @@ Semantics notes:
 cargo test
 ```
 
-51 tests: unit tests for the dotenv parser, the interpolator, Compose
+55 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
@@ -342,7 +363,7 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [ ] LSP server + VS Code extension (hover source, jump-to-definition, live diagnostics)
 - [x] GitLab CI variables support (include < global < job; `$VAR`
       reference tracking; predefined variables)
-- [ ] CircleCI env syntax support
+- [x] CircleCI env support (executor < job, parameters, contexts external)
 
 **Phase 3 — ecosystem**
 - [ ] crates.io release (`cargo install envorigin`) + Homebrew tap

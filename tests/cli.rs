@@ -642,3 +642,70 @@ fn gitlab_explain_job_override_wins() {
         .stdout(predicate::str::contains("overridden_in_job"))
         .stdout(predicate::str::contains("[shadowed] global variables"));
 }
+
+// --- CircleCI ---
+
+fn circleci_fixture() -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/circleci/.circleci/config.yml")
+        .display()
+        .to_string()
+}
+
+fn circleci_command(subcommand: &str) -> Command {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("circleci")
+        .arg(subcommand)
+        .arg("--file")
+        .arg(circleci_fixture());
+    command
+}
+
+#[test]
+fn circleci_scan_lists_jobs_parameters_and_contexts() {
+    let output = circleci_command("scan").assert().success();
+    output
+        .stdout(predicate::str::contains("CircleCI analysis"))
+        .stdout(predicate::str::contains("job build"))
+        .stdout(predicate::str::contains("job deploy"))
+        .stdout(predicate::str::contains("parameters:"))
+        .stdout(predicate::str::contains("context: deploy-context"))
+        .stdout(predicate::str::contains("circleci-context-external"));
+}
+
+#[test]
+fn circleci_job_env_overrides_executor_env() {
+    let output = circleci_command("explain")
+        .args(["SHARED", "-j", "build", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("winner: job environment"))
+        .stdout(predicate::str::contains("job_value"))
+        .stdout(predicate::str::contains("[shadowed] executor environment"))
+        .stdout(predicate::str::contains("executor_value"));
+}
+
+#[test]
+fn circleci_parameter_reference_resolves_to_declaration() {
+    let output = circleci_command("explain")
+        .args(["TARGET", "-j", "build", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("references:"))
+        .stdout(predicate::str::contains("parameters.target"))
+        .stdout(predicate::str::contains("job parameter"));
+}
+
+#[test]
+fn circleci_variables_interpolate_in_scope() {
+    let output = circleci_command("explain")
+        .args(["COMPOSITE", "-j", "build", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("\"job_value-suffix\""))
+        .stdout(predicate::str::contains("SHARED"));
+}

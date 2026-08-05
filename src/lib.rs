@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod audit;
+pub mod circleci;
 pub mod cli;
 pub mod compose;
 pub mod diff;

@@ -1,0 +1,33 @@
+version: 2.1
+
+executors:
+  base:
+    docker:
+      - image: cimg/base:stable
+    environment:
+      EXECUTOR_ENV: from_executor
+      SHARED: executor_value
+
+jobs:
+  build:
+    executor: base
+    parameters:
+      target:
+        type: string
+        default: prod
+    environment:
+      SHARED: job_value
+      COMPOSITE: ${SHARED}-suffix
+      TARGET: << parameters.target >>
+      BRANCH_INFO: branch-$CIRCLE_BRANCH
+    steps:
+      - run: echo "building"
+
+  deploy:
+    docker:
+      - image: cimg/base:stable
+    context: deploy-context
+    environment:
+      FROM_JOB: deploy_only
+    steps:
+      - run: echo "deploying"

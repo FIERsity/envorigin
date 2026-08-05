@@ -28,8 +28,48 @@ pub enum Command {
     Graph(GraphArgs),
     /// Analyze a GitLab CI configuration's variables.
     Gitlab(GitlabArgs),
+    /// Analyze a CircleCI configuration's environment variables.
+    Circleci(CircleciArgs),
     /// Analyze a GitHub Actions workflow's environment variables.
     Actions(ActionsArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct CircleciArgs {
+    #[command(subcommand)]
+    pub command: CircleciCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CircleciCommand {
+    /// List the environment variables defined per job.
+    Scan(CircleciScanArgs),
+    /// Explain the winning and shadowed sources for one variable.
+    Explain(CircleciExplainArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct CircleciScanArgs {
+    /// CircleCI config file to analyze.
+    #[arg(long = "file", short = 'f', default_value = ".circleci/config.yml")]
+    pub file: PathBuf,
+    /// Reveal values. By default values are replaced by a short SHA-256 fingerprint.
+    #[arg(long)]
+    pub show_values: bool,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
+    pub format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+pub struct CircleciExplainArgs {
+    /// Environment variable name to explain.
+    pub variable: String,
+    /// Job to inspect.
+    #[arg(long, short = 'j')]
+    pub job: String,
+    #[command(flatten)]
+    pub common: CircleciScanArgs,
 }
 
 #[derive(Debug, Args)]
