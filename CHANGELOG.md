@@ -4,6 +4,13 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-08-06
+
+### Added
+
+- `--format json` on all four audit commands: machine-readable issues
+  array (severity/code/message/path/line) for CI pipelines.
+
 ## [0.6.0] - 2026-08-06
 
 ### Added
