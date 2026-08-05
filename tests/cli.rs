@@ -899,3 +899,29 @@ fn actions_unnamed_steps_use_one_based_numbers() {
         .stdout(predicate::str::contains("step #1:"))
         .stdout(predicate::str::contains("step #2:"));
 }
+
+#[test]
+fn audit_json_output_is_machine_readable() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--format", "json", "--no-docker-check", "--file"])
+        .arg(audit_fixture())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("\"code\": \"sensitive-value\""))
+        .stdout(predicate::str::contains("\"severity\": \"error\""))
+        .stdout(predicate::str::contains("\"line\": 7"));
+}
+
+#[test]
+fn gitlab_audit_json_output() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["gitlab", "audit", "--format", "json", "--file"])
+        .arg(gitlab_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "\"code\": \"gitlab-include-external\"",
+        ));
+}

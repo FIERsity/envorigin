@@ -123,14 +123,12 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             let report = analyze(&options(&args.common))?;
             let rules = load_rules(&args.config)?;
             let issues = audit_project(&report, rules.as_ref());
-            exit_code_for_audit(
+            exit_code_for_audit(&issues, args.fail_on, args.common.format, || {
                 audit_human(
                     &format!("compose: {}", report.compose_file.display()),
                     &issues,
-                ),
-                &issues,
-                args.fail_on,
-            )
+                )
+            })
         }
         Command::Diff(args) => {
             let report = diff_files(&args.files)?;
@@ -171,11 +169,9 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 let report = analyze_circleci(&audit.common.file)?;
                 let rules = load_rules(&audit.config)?;
                 let issues = audit_circleci(&report, rules.as_ref());
-                exit_code_for_audit(
-                    audit_human(&format!("file: {}", report.file.display()), &issues),
-                    &issues,
-                    audit.fail_on,
-                )
+                exit_code_for_audit(&issues, audit.fail_on, audit.common.format, || {
+                    audit_human(&format!("file: {}", report.file.display()), &issues)
+                })
             }
         },
         Command::Gitlab(args) => match args.command {
@@ -206,11 +202,9 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 let report = analyze_gitlab(&audit.common.file)?;
                 let rules = load_rules(&audit.config)?;
                 let issues = audit_gitlab(&report, rules.as_ref());
-                exit_code_for_audit(
-                    audit_human(&format!("file: {}", report.file.display()), &issues),
-                    &issues,
-                    audit.fail_on,
-                )
+                exit_code_for_audit(&issues, audit.fail_on, audit.common.format, || {
+                    audit_human(&format!("file: {}", report.file.display()), &issues)
+                })
             }
         },
         // Handled in main() before run() is called.
@@ -254,14 +248,12 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 )?;
                 let rules = load_rules(&audit.config)?;
                 let issues = audit_workflow(&report, rules.as_ref());
-                exit_code_for_audit(
+                exit_code_for_audit(&issues, audit.fail_on, audit.common.format, || {
                     audit_human(
                         &format!("workflow: {}", report.workflow_file.display()),
                         &issues,
-                    ),
-                    &issues,
-                    audit.fail_on,
-                )
+                    )
+                })
             }
             ActionsCommand::Graph(graph) => {
                 let report = envorigin::actions::analyze_workflow(
@@ -275,11 +267,18 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
 }
 
 fn exit_code_for_audit(
-    output: String,
     issues: &[AuditIssue],
     fail_on: FailLevel,
+    format: OutputFormat,
+    human: impl FnOnce() -> String,
 ) -> Result<RunOutcome, AnalysisError> {
     let failed = issues.iter().any(|issue| fail_on.triggers(issue.severity));
+    let output = match format {
+        OutputFormat::Human => human(),
+        OutputFormat::Json => {
+            serde_json::to_string_pretty(issues).expect("AuditIssue is serializable")
+        }
+    };
     Ok(RunOutcome {
         output,
         exit_code: if failed {

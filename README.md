@@ -215,6 +215,9 @@ warning [shadowed-env-line]: SHADOWED is shadowed by a higher-precedence layer a
 info [unused-interpolation-variable]: ORPHAN in the interpolation file is not consumed by any service (/app/.env:2)
 ```
 
+All audit commands support `--format json` for machine-readable CI
+integration (issues array with severity/code/message/path/line).
+
 `--fail-on <level>` (default `error`) turns the audit into a CI gate:
 `--fail-on warning` exits 1 when any warning or error is found. Values are
 never printed — the audit can run on repositories holding real credentials.
@@ -388,7 +391,7 @@ caching needed.
 cargo test
 ```
 
-95 tests: unit tests for the dotenv parser, the interpolator, Compose
+97 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
