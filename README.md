@@ -343,8 +343,7 @@ Documents are routed to the matching backend by file name (`compose.y*ml`,
 `.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`).
 Unsaved buffer edits are analyzed in memory — hover and diagnostics track
 the buffer, while relative references still resolve against the real file
-location. The extension lives in [`vscode/`](vscode/) (TS client, `npm run compile` to
-build, `binaryPath` setting to point at the CLI).
+location. The extension lives in [`vscode/`](vscode/) (TS client, `npm run compile` + `npx @vscode/vsce package` to build, `binaryPath` setting to point at the CLI). Install the built VSIX with `code --install-extension envorigin-vscode-<version>.vsix`.
 
 ## Design
 
