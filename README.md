@@ -216,6 +216,28 @@ info [unused-interpolation-variable]: ORPHAN in the interpolation file is not co
 `--fail-on warning` exits 1 when any warning or error is found. Values are
 never printed — the audit can run on repositories holding real credentials.
 
+### Rules (`envorigin.toml`)
+
+Turn team conventions into enforced audit checks. Any audit command
+(`audit`, `actions audit`, `gitlab audit`, `circleci audit`) loads
+`./envorigin.toml` automatically, or a file via `--config`:
+
+```toml
+# envorigin.toml
+required = ["DATABASE_URL", "LOG_LEVEL"]   # must resolve somewhere
+prefix = "APP_"                            # every user variable must follow
+forbidden = ["CI"]                         # must not be defined
+```
+
+| Check | Severity | Trigger |
+| --- | --- | --- |
+| `required-variable-missing` | error | a required name resolves nowhere |
+| `naming-prefix` | warning | a user-defined variable violates the prefix |
+| `forbidden-variable` | error | a forbidden name is defined |
+
+The same checks apply to all four backends; `--fail-on` gates CI exactly as
+for the built-in checks.
+
 EnvOrigin audits its own workflow on every push: the `Audit own workflow
 (dogfood)` step in `.github/workflows/ci.yml` runs
 `envorigin actions audit --fail-on warning` on the repository's CI file.
@@ -351,7 +373,7 @@ Semantics notes:
 cargo test
 ```
 
-60 tests: unit tests for the dotenv parser, the interpolator, Compose
+65 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

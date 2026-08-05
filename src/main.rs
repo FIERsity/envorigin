@@ -24,6 +24,7 @@ use envorigin::model::AnalysisError;
 use envorigin::output::{
     explanation_human, explanation_json, project_human, project_json, service_human,
 };
+use envorigin::rules::{default_config_path, Rules};
 use envorigin::{analyze, AnalyzeOptions};
 
 struct RunOutcome {
@@ -89,7 +90,8 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
         }
         Command::Audit(args) => {
             let report = analyze(&options(&args.common))?;
-            let issues = audit_project(&report);
+            let rules = load_rules(&args.config)?;
+            let issues = audit_project(&report, rules.as_ref());
             exit_code_for_audit(
                 audit_human(
                     &format!("compose: {}", report.compose_file.display()),
@@ -132,7 +134,8 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             }
             CircleciCommand::Audit(audit) => {
                 let report = analyze_circleci(&audit.common.file)?;
-                let issues = audit_circleci(&report);
+                let rules = load_rules(&audit.config)?;
+                let issues = audit_circleci(&report, rules.as_ref());
                 exit_code_for_audit(
                     audit_human(&format!("file: {}", report.file.display()), &issues),
                     &issues,
@@ -162,7 +165,8 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             }
             GitlabCommand::Audit(audit) => {
                 let report = analyze_gitlab(&audit.common.file)?;
-                let issues = audit_gitlab(&report);
+                let rules = load_rules(&audit.config)?;
+                let issues = audit_gitlab(&report, rules.as_ref());
                 exit_code_for_audit(
                     audit_human(&format!("file: {}", report.file.display()), &issues),
                     &issues,
@@ -208,7 +212,8 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                     &audit.common.workflow_file,
                     audit.common.project_directory.as_deref(),
                 )?;
-                let issues = audit_workflow(&report);
+                let rules = load_rules(&audit.config)?;
+                let issues = audit_workflow(&report, rules.as_ref());
                 exit_code_for_audit(
                     audit_human(
                         &format!("workflow: {}", report.workflow_file.display()),
@@ -243,6 +248,14 @@ fn exit_code_for_audit(
             ExitCode::SUCCESS
         },
     })
+}
+
+fn load_rules(config: &Option<std::path::PathBuf>) -> Result<Option<Rules>, AnalysisError> {
+    let path = config.clone().or_else(default_config_path);
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    Rules::from_file(&path).map_err(|message| AnalysisError::InvalidRules { path, message })
 }
 
 fn select_job<'a>(

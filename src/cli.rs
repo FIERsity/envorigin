@@ -59,6 +59,9 @@ pub struct CircleciAuditArgs {
     /// Fail (exit 1) when issues of this severity or higher are found.
     #[arg(long, value_enum, default_value_t = FailLevel::Error)]
     pub fail_on: FailLevel,
+    /// Team convention rules file (default: ./envorigin.toml if present).
+    #[arg(long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -108,6 +111,9 @@ pub struct GitlabAuditArgs {
     /// Fail (exit 1) when issues of this severity or higher are found.
     #[arg(long, value_enum, default_value_t = FailLevel::Error)]
     pub fail_on: FailLevel,
+    /// Team convention rules file (default: ./envorigin.toml if present).
+    #[arg(long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -160,6 +166,9 @@ pub struct AuditArgs {
     /// Fail (exit 1) when issues of this severity or higher are found.
     #[arg(long, value_enum, default_value_t = FailLevel::Error)]
     pub fail_on: FailLevel,
+    /// Team convention rules file (default: ./envorigin.toml if present).
+    #[arg(long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -213,6 +222,9 @@ pub struct ActionsAuditArgs {
     /// Fail (exit 1) when issues of this severity or higher are found.
     #[arg(long, value_enum, default_value_t = FailLevel::Error)]
     pub fail_on: FailLevel,
+    /// Team convention rules file (default: ./envorigin.toml if present).
+    #[arg(long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
