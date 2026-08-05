@@ -275,3 +275,47 @@ fn lsp_routes_all_four_backends() {
         client.shutdown().expect("graceful shutdown");
     }
 }
+
+#[test]
+fn lsp_routes_compose_filename_variants() {
+    let dir = tempfile::tempdir().unwrap();
+    for name in [
+        "compose.yaml",
+        "compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.yml",
+    ] {
+        let file = dir.path().join(name);
+        std::fs::write(
+            &file,
+            "services:\n  web:\n    image: nginx\n    environment:\n      MODE: production\n",
+        )
+        .unwrap();
+        let uri = format!("file://{}", file.display());
+        let mut client = LspClient::start();
+        client.request(1, "initialize", json!({"capabilities": {}}));
+        client.notify("initialized", json!({}));
+        client.notify(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {"uri": uri, "languageId": "yaml", "version": 1,
+                                  "text": std::fs::read_to_string(&file).unwrap()}
+            }),
+        );
+        let published = client.receive_until("textDocument/publishDiagnostics");
+        // A valid compose file publishes (possibly empty) diagnostics; hover
+        // must resolve the MODE symbol.
+        let hover = client.request(
+            2,
+            "textDocument/hover",
+            json!({"textDocument": {"uri": uri}, "position": {"line": 4, "character": 0}}),
+        );
+        let hover_text = hover["result"]["contents"]["value"].as_str().unwrap_or("");
+        assert!(
+            hover_text.contains("MODE"),
+            "{name}: hover should resolve MODE, got {hover_text:?}"
+        );
+        let _ = published;
+        client.shutdown().expect("graceful shutdown");
+    }
+}
