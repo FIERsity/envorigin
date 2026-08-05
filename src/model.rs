@@ -28,6 +28,16 @@ pub enum AnalysisError {
     ServiceRequired(String),
     #[error("variable '{variable}' is not configured for service '{service}'")]
     UnknownVariable { service: String, variable: String },
+    #[error("invalid workflow in {path}: {message}")]
+    InvalidWorkflow { path: PathBuf, message: String },
+    #[error("unknown job '{0}'")]
+    UnknownJob(String),
+    #[error("--step is required because job '{0}' defines multiple steps")]
+    StepRequired(String),
+    #[error("unknown step in job '{job}': {step}")]
+    UnknownStep { job: String, step: String },
+    #[error("variable '{variable}' is not configured for job '{job}'")]
+    UnknownActionsVariable { job: String, variable: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -100,7 +110,7 @@ pub struct Candidate {
     pub disposition: CandidateDisposition,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum VariableState {
     Present,
@@ -167,7 +177,7 @@ pub enum DockerStatus {
     Skipped,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
     Info,

@@ -1,0 +1,32 @@
+name: CI
+env:
+  WORKFLOW_LEVEL: from_workflow
+  SHARED: workflow_value
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      JOB_LEVEL: from_job
+      SHARED: job_value
+      COMBINED: "${{ env.JOB_LEVEL }}-on-${{ matrix.os }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure
+        run: ./configure.sh
+        env:
+          SHARED: step_value
+      - name: Run tests
+        run: echo "Running on ${{ matrix.os }}"
+        env:
+          MATRIX_OS: "${{ matrix.os }}"
+      - name: Persist result
+        run: echo "RESULT=ok" >> "$GITHUB_ENV"
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      file: deploy.env
+    steps:
+      - name: Deploy
+        run: ./deploy.sh

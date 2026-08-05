@@ -1,16 +1,21 @@
 # EnvOrigin
 
-Explain where Docker Compose environment variables actually come from.
+Explain where environment variables actually come from — in Docker Compose
+projects **and** GitHub Actions workflows.
 
 > “Why is `DATABASE_URL` suddenly `localhost` in staging? It was fine yesterday.”
+> “Which `SHARED` did that step actually see — the workflow env, the job env,
+> the step env, or the env file?”
 
 A variable in a Compose service can be defined in five places at once — your
 shell, `.env`, `--env-file`, `services.*.env_file`, and `services.*.environment`
 — and Compose resolves each one differently depending on how the others are
-written. When the value changes, figuring out *which* layer won (and which
+written. A workflow variable can be defined in five more: workflow, job, and
+step `env:` blocks, `env: file:` references, and `GITHUB_ENV` writes at
+runtime. When the value changes, figuring out *which* layer won (and which
 layers you just wasted an hour editing) is manual archaeology.
 
-EnvOrigin reads your project exactly the way Compose does and answers the
+EnvOrigin reads your project exactly the way the platform does and answers the
 question per variable, with the full provenance chain and line numbers:
 
 ```text
@@ -72,6 +77,7 @@ Usage: envorigin <COMMAND>
 Commands:
   scan     List the variables configured for each Compose service
   explain  Explain the winning and shadowed sources for one variable
+  actions  Analyze a GitHub Actions workflow's environment variables
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -79,7 +85,7 @@ Options:
   -V, --version  Print version
 ```
 
-Common flags (for both subcommands):
+Common flags for `scan`/`explain`:
 
 | Flag | Meaning |
 | --- | --- |
@@ -134,6 +140,45 @@ derived from:
 block is EnvOrigin's answer to "but *why* is it that value?" for interpolated
 variables.
 
+### `actions`
+
+GitHub Actions resolves a variable from up to five declaration layers per
+scope, and one runtime layer you can't see statically:
+
+| Layer (low → high) | Writes a value | Notes |
+| --- | --- | --- |
+| Workflow-level `env:` | every job and step | |
+| Job-level `env:` | every step in the job | overrides workflow env |
+| Job-level `env: file:` | every step in the job | overrides job env |
+| Step-level `env:` | that step | overrides job layers |
+| Step-level `env: file:` | that step | overrides step env |
+| `GITHUB_ENV` writes | subsequent steps | **runtime only — flagged, not resolved** |
+
+```text
+$ envorigin actions explain SHARED -j build -s Configure --show-values
+
+SHARED in workflow .github/workflows/ci.yml
+state: set
+value: "step_value"
+winner: step env (.github/workflows/ci.yml:19)
+candidates:
+  - [shadowed] workflow env (.github/workflows/ci.yml:4) = "workflow_value"
+  - [shadowed] job env (.github/workflows/ci.yml:11) = "job_value"
+  - [winner] step env (.github/workflows/ci.yml:19) = "step_value"
+```
+
+`actions` also tracks `${{ ... }}` expressions — the reference list answers
+"what did this value read from?" for `${{ env.X }}` (resolved to its source),
+`${{ secrets.X }}` / `${{ vars.X }}` / `${{ github.* }}` (marked `external
+context`, since their values live in repository/org settings), and
+`${{ matrix.X }}` (marked external — a strategy variable). `GITHUB_ENV` writes
+like `echo "RESULT=ok" >> "$GITHUB_ENV"` produce an Info diagnostic: the
+variable exists at runtime but cannot be resolved statically.
+
+Flags: `-f/--file` (default `.github/workflows/ci.yml`), `-j/--job`,
+`-s/--step` (name, id, or index), `--project-directory`,
+`--show-values`, `--format json`.
+
 ## Design
 
 - **`src/compose.rs`** — Compose model (env_file specs, environment forms) and
@@ -145,12 +190,19 @@ variables.
   unset entries, trailing-content warnings.
 - **`src/docker.rs`** — spawns `docker compose config --format json` and
   reconciles Docker's canonical model against the local model.
+- **`src/actions.rs`** — workflow model: layered env resolution (workflow →
+  job → job file → step → step file), `${{ }}` reference tracking, built-in
+  default variables, and `GITHUB_ENV` runtime detection.
 - **`src/output.rs`** — human and JSON renderers, default redaction with
   SHA-256 fingerprints.
 
 Deliberate v0.1 scope: Compose files only (no standalone `.env` tooling), and
 the two rules from Compose's interpolation set — `COMPOSE_FILE` and
 `COMPOSE_ENV_FILES` — produce warnings rather than automatic expansion.
+`actions` is static analysis: `GITHUB_ENV` writes are flagged as runtime-only,
+and GitHub does not document the precedence of a `file:` key mixed with
+regular keys in one `env:` block — EnvOrigin applies the file layer after the
+map (same order as Compose `env_file`).
 
 ## Testing
 
@@ -158,18 +210,19 @@ the two rules from Compose's interpolation set — `COMPOSE_FILE` and
 cargo test
 ```
 
-16 tests: unit tests for the dotenv parser, the interpolator, Compose
-normalization, and the Docker canonical extraction; plus end-to-end CLI tests
-against `tests/fixtures/{basic,precedence}` that assert redaction, derivation
-tracking, and the full shadowing chain. CI runs `fmt` + `clippy -D warnings` +
-tests on Ubuntu.
+28 tests: unit tests for the dotenv parser, the interpolator, Compose
+normalization, the Docker canonical extraction, and the Actions layer
+resolution; plus end-to-end CLI tests against
+`tests/fixtures/{basic,precedence,actions}` that assert redaction, derivation
+tracking, the full shadowing chain, and expression-reference resolution. CI
+runs `fmt` + `clippy -D warnings` + tests on Ubuntu.
 
 ## Roadmap
 
-- [ ] GitHub Actions adapter: explain `env:` steps and job-level `env` files
 - [ ] `--env-file` precedence diagnostics (later files winning silently)
 - [ ] `COMPOSE_ENV_FILES` support
 - [ ] `env_file` `format: raw` end-to-end coverage
+- [ ] workflow `on:` dispatch context (inputs, reusable workflows)
 
 ## License
 

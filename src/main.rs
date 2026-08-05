@@ -1,7 +1,10 @@
 use std::process::ExitCode;
 
 use clap::Parser;
-use envorigin::cli::{Cli, Command, CommonArgs, OutputFormat};
+use envorigin::actions::{
+    actions_human, actions_json, actions_variable_human, actions_variable_json,
+};
+use envorigin::cli::{ActionsCommand, Cli, Command, CommonArgs, OutputFormat};
 use envorigin::model::AnalysisError;
 use envorigin::output::{
     explanation_human, explanation_json, project_human, project_json, service_human,
@@ -55,6 +58,89 @@ fn run(cli: Cli) -> Result<String, AnalysisError> {
                 OutputFormat::Json => explanation_json(explanation, args.common.show_values),
             })
         }
+        Command::Actions(args) => match args.command {
+            ActionsCommand::Scan(scan) => {
+                let report = envorigin::actions::analyze_workflow(
+                    &scan.workflow_file,
+                    scan.project_directory.as_deref(),
+                )?;
+                Ok(match scan.format {
+                    OutputFormat::Human => actions_human(&report, scan.show_values),
+                    OutputFormat::Json => actions_json(&report, scan.show_values),
+                })
+            }
+            ActionsCommand::Explain(explain) => {
+                let report = envorigin::actions::analyze_workflow(
+                    &explain.common.workflow_file,
+                    explain.common.project_directory.as_deref(),
+                )?;
+                let job = select_job(&report, explain.job.as_deref())?;
+                let step_index = match &explain.step {
+                    None => None,
+                    Some(spec) => Some(select_step(&report, job, spec)?),
+                };
+                let variable = report.explain(job, step_index, &explain.variable)?;
+                Ok(match explain.common.format {
+                    OutputFormat::Human => {
+                        actions_variable_human(&report, variable, explain.common.show_values)
+                    }
+                    OutputFormat::Json => {
+                        actions_variable_json(&report, variable, explain.common.show_values)
+                    }
+                })
+            }
+        },
+    }
+}
+
+fn select_job<'a>(
+    report: &'a envorigin::actions::ActionsReport,
+    requested: Option<&'a str>,
+) -> Result<&'a str, AnalysisError> {
+    if let Some(job) = requested {
+        if report.jobs.iter().any(|candidate| candidate.id == job) {
+            return Ok(job);
+        }
+        return Err(AnalysisError::UnknownJob(job.to_string()));
+    }
+    if report.jobs.len() == 1 {
+        return Ok(&report.jobs[0].id);
+    }
+    Err(AnalysisError::UnknownJob(
+        report
+            .jobs
+            .iter()
+            .map(|job| job.id.as_str())
+            .collect::<Vec<_>>()
+            .join(", "),
+    ))
+}
+
+fn select_step(
+    report: &envorigin::actions::ActionsReport,
+    job: &str,
+    spec: &str,
+) -> Result<usize, AnalysisError> {
+    let job_report = report
+        .jobs
+        .iter()
+        .find(|candidate| candidate.id == job)
+        .expect("job was selected");
+    if let Ok(index) = spec.parse::<usize>() {
+        if let Some(step) = job_report.steps.iter().find(|step| step.index == index) {
+            return Ok(step.index);
+        }
+    }
+    let by_name = job_report
+        .steps
+        .iter()
+        .find(|step| step.name.as_deref() == Some(spec) || step.id.as_deref() == Some(spec));
+    match by_name {
+        Some(step) => Ok(step.index),
+        None => Err(AnalysisError::UnknownStep {
+            job: job.to_string(),
+            step: spec.to_string(),
+        }),
     }
 }
 

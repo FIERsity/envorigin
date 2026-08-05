@@ -206,7 +206,7 @@ fn display_value(value: &str, show_values: bool) -> String {
     }
 }
 
-fn fingerprint(value: &str) -> String {
+pub(crate) fn fingerprint(value: &str) -> String {
     let digest = Sha256::digest(value.as_bytes());
     let mut short = String::with_capacity(8);
     for byte in &digest[..4] {

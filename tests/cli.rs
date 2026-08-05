@@ -139,3 +139,134 @@ fn no_docker_check_marks_verification_skipped() {
     let output = command("scan", "basic").assert().success();
     output.stdout(predicate::str::contains("docker verification: skipped"));
 }
+
+// --- GitHub Actions ---
+
+fn workflow_path() -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/actions/.github/workflows/workflow.yaml")
+        .display()
+        .to_string()
+}
+
+fn actions_command(subcommand: &str) -> Command {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("actions")
+        .arg(subcommand)
+        .arg("--file")
+        .arg(workflow_path());
+    command
+}
+
+#[test]
+fn actions_scan_lists_jobs_steps_and_sources() {
+    let output = actions_command("scan").assert().success();
+    output
+        .stdout(predicate::str::contains("job build"))
+        .stdout(predicate::str::contains("step \"Configure\""))
+        .stdout(predicate::str::contains("workflow env"))
+        .stdout(predicate::str::contains("<redacted sha256:"));
+}
+
+#[test]
+fn actions_scan_reveals_values_with_flag() {
+    let output = actions_command("scan")
+        .arg("--show-values")
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("\"step_value\""))
+        .stdout(predicate::str::contains("<redacted").not());
+}
+
+#[test]
+fn actions_explain_shows_full_shadowing_chain() {
+    let output = actions_command("explain")
+        .args(["SHARED", "-j", "build", "-s", "Configure", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("winner: step env"))
+        .stdout(predicate::str::contains("[shadowed] workflow env"))
+        .stdout(predicate::str::contains("[shadowed] job env"))
+        .stdout(predicate::str::contains("workflow.yaml:19"));
+}
+
+#[test]
+fn actions_explain_resolves_env_file() {
+    let output = actions_command("explain")
+        .args(["FILE_LEVEL", "-j", "deploy", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("winner: env file"))
+        .stdout(predicate::str::contains("deploy.env:1"));
+}
+
+#[test]
+fn actions_explain_tracks_expression_references() {
+    let output = actions_command("explain")
+        .args(["COMBINED", "-j", "build", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("references:"))
+        .stdout(predicate::str::contains("env.JOB_LEVEL"))
+        .stdout(predicate::str::contains("matrix.os"))
+        .stdout(predicate::str::contains("external context"));
+}
+
+#[test]
+fn actions_explain_reports_runtime_github_env_writes() {
+    let output = actions_command("scan").assert().success();
+    output
+        .stdout(predicate::str::contains("github-env-runtime"))
+        .stdout(predicate::str::contains("RESULT"));
+}
+
+#[test]
+fn actions_require_job_for_multi_job_workflow() {
+    let output = actions_command("explain").arg("SHARED").assert().failure();
+    output.stderr(predicate::str::contains("unknown job"));
+
+    let output = actions_command("explain").arg("NOPE").assert().failure();
+    output.stderr(predicate::str::contains("unknown job"));
+}
+
+#[test]
+fn actions_json_output_redacts_and_keeps_expressions() {
+    let output = actions_command("scan")
+        .arg("--format")
+        .arg("json")
+        .assert()
+        .success();
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+    let report: envorigin::actions::ActionsReport = serde_json::from_str(&stdout).unwrap();
+    let build = report.jobs.iter().find(|job| job.id == "build").unwrap();
+    assert_eq!(build.steps.len(), 4);
+    let shared = build
+        .steps
+        .iter()
+        .find(|step| step.name.as_deref() == Some("Configure"))
+        .unwrap()
+        .variables
+        .iter()
+        .find(|variable| variable.variable == "SHARED")
+        .unwrap();
+    assert!(shared
+        .value
+        .as_deref()
+        .unwrap()
+        .starts_with("<redacted sha256:"));
+    let combined = build
+        .variables
+        .iter()
+        .find(|variable| variable.variable == "COMBINED")
+        .unwrap();
+    assert!(combined
+        .value
+        .as_deref()
+        .unwrap()
+        .contains("${{ env.JOB_LEVEL }}"));
+}

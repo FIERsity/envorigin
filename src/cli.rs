@@ -20,6 +20,52 @@ pub enum Command {
     Scan(ScanArgs),
     /// Explain the winning and shadowed sources for one variable.
     Explain(ExplainArgs),
+    /// Analyze a GitHub Actions workflow's environment variables.
+    Actions(ActionsArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ActionsArgs {
+    #[command(subcommand)]
+    pub command: ActionsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ActionsCommand {
+    /// List the environment variables visible in each job and step.
+    Scan(ActionsScanArgs),
+    /// Explain the winning and shadowed sources for one variable.
+    Explain(ActionsExplainArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ActionsScanArgs {
+    /// Workflow file to analyze.
+    #[arg(long = "file", short = 'f', default_value = ".github/workflows/ci.yml")]
+    pub workflow_file: PathBuf,
+    /// Override the repository root (env files resolve relative to it).
+    #[arg(long)]
+    pub project_directory: Option<PathBuf>,
+    /// Reveal values. By default values are replaced by a short SHA-256 fingerprint.
+    #[arg(long)]
+    pub show_values: bool,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
+    pub format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+pub struct ActionsExplainArgs {
+    /// Environment variable name to explain.
+    pub variable: String,
+    /// Job to inspect. Optional when the workflow has a single job.
+    #[arg(long, short = 'j')]
+    pub job: Option<String>,
+    /// Step name, id, or index to inspect. Omit to explain the job-level variable.
+    #[arg(long, short = 's')]
+    pub step: Option<String>,
+    #[command(flatten)]
+    pub common: ActionsScanArgs,
 }
 
 #[derive(Debug, Args)]
