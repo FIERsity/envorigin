@@ -852,3 +852,30 @@ fn audit_pattern_rules_mismatch() {
         .stdout(predicate::str::contains("pattern-mismatch"))
         .stdout(predicate::str::contains("^postgres(ql)?://"));
 }
+
+// --- completions ---
+
+#[test]
+fn completions_generate_for_each_shell() {
+    for shell in ["bash", "zsh", "fish"] {
+        let mut command = Command::cargo_bin("envorigin").unwrap();
+        command
+            .args(["completions", shell])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("envorigin"));
+    }
+}
+
+#[test]
+fn completions_include_subcommands() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["completions", "bash"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("scan"))
+        .stdout(predicate::str::contains("explain"))
+        .stdout(predicate::str::contains("audit"))
+        .stdout(predicate::str::contains("actions"));
+}

@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use envorigin::actions::{
     actions_human, actions_json, actions_variable_human, actions_variable_json,
 };
@@ -34,9 +34,22 @@ struct RunOutcome {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    if matches!(&cli.command, Command::Lsp) {
-        envorigin::lsp::run_lsp();
-        return ExitCode::SUCCESS;
+    match &cli.command {
+        Command::Lsp => {
+            envorigin::lsp::run_lsp();
+            return ExitCode::SUCCESS;
+        }
+        Command::Completions(args) => {
+            let mut command = Cli::command();
+            clap_complete::generate(
+                args.shell,
+                &mut command,
+                "envorigin",
+                &mut std::io::stdout(),
+            );
+            return ExitCode::SUCCESS;
+        }
+        _ => {}
     }
     match run(cli) {
         Ok(outcome) => {
@@ -184,6 +197,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
         },
         // Handled in main() before run() is called.
         Command::Lsp => Ok(outcome(String::new())),
+        Command::Completions(_) => Ok(outcome(String::new())),
         Command::Actions(args) => match args.command {
             ActionsCommand::Scan(scan) => {
                 let report = envorigin::actions::analyze_workflow(

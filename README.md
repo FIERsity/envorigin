@@ -85,6 +85,7 @@ Commands:
   circleci Analyze a CircleCI configuration's environment variables
   actions  Analyze a GitHub Actions workflow's environment variables
   lsp      Start the LSP server (for editor integration)
+  completions  Generate a shell completion script
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -381,7 +382,7 @@ Semantics notes:
 cargo test
 ```
 
-70 tests: unit tests for the dotenv parser, the interpolator, Compose
+72 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
@@ -418,6 +419,14 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [ ] rules engine: `envorigin.toml` for team conventions (required vars,
       name prefixes, value validation)
 - [ ] integration notes for secret managers (Vault, AWS SSM)
+
+### Shell completions
+
+```sh
+envorigin completions bash  > ~/.bash_completion.d/envorigin
+envorigin completions zsh   > ~/.zfunc/_envorigin
+envorigin completions fish  > ~/.config/fish/completions/envorigin.fish
+```
 
 ## Release
 
