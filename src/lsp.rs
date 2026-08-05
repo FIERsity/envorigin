@@ -169,7 +169,7 @@ fn analyze_file(
             }
         }
         collect(symbols, diagnostics);
-    } else if workflow_dir && file_name.ends_with(".yml") {
+    } else if workflow_dir && (file_name.ends_with(".yml") || file_name.ends_with(".yaml")) {
         let report = actions::analyze_workflow_with_content(path, None, content)?;
         let mut symbols = Vec::new();
         let mut diagnostics = Vec::new();
@@ -177,6 +177,22 @@ fn analyze_file(
             diagnostics.push(from_env_diag(diagnostic));
         }
         for job in &report.jobs {
+            for step in &job.steps {
+                for diagnostic in &step.diagnostics {
+                    // Step-level diagnostics (e.g. GITHUB_ENV runtime writes)
+                    // anchor on the step's variable lines when possible.
+                    let line = step
+                        .variables
+                        .first()
+                        .and_then(|variable| {
+                            variable.winner.as_ref().and_then(|winner| winner.line)
+                        })
+                        .unwrap_or(1);
+                    let mut diag = from_env_diag(diagnostic);
+                    diag.line = Some(line);
+                    diagnostics.push(diag);
+                }
+            }
             for variable in job
                 .variables
                 .iter()
@@ -504,4 +520,54 @@ pub fn run_lsp() {
             .serve(service)
             .await;
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn actions_branch_includes_step_diagnostics() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/actions/.github/workflows/workflow.yaml");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let report =
+            crate::actions::analyze_workflow_with_content(&path, None, Some(&content)).unwrap();
+        let steps = report.jobs.iter().flat_map(|job| &job.steps).count();
+        let step_diags: Vec<&str> = report
+            .jobs
+            .iter()
+            .flat_map(|job| job.steps.iter().flat_map(|step| step.diagnostics.iter()))
+            .map(|diag| diag.code.as_str())
+            .collect();
+        assert_eq!(steps, 5, "expected 5 steps, jobs={}", report.jobs.len());
+        assert!(
+            step_diags.contains(&"github-env-runtime"),
+            "step diagnostics missing, got {step_diags:?}"
+        );
+        let analysis = analyze_file(&path, Some(&content)).unwrap();
+        let codes: Vec<&str> = analysis
+            .diagnostics
+            .iter()
+            .map(|diag| diag.code.as_str())
+            .collect();
+        assert!(
+            codes.contains(&"github-env-runtime"),
+            "step diagnostics missing, got {codes:?}"
+        );
+    }
+
+    #[test]
+    fn gitlab_branch_includes_report_diagnostics() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/gitlab/.gitlab-ci.yml");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let analysis = analyze_file(&path, Some(&content)).unwrap();
+        let codes: Vec<&str> = analysis
+            .diagnostics
+            .iter()
+            .map(|diag| diag.code.as_str())
+            .collect();
+        assert!(codes.contains(&"gitlab-include-external"), "got {codes:?}");
+    }
 }
