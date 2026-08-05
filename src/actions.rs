@@ -25,6 +25,7 @@ pub enum ActionsSourceKind {
     JobEnv,
     StepEnv,
     EnvFile,
+    WorkflowInput,
     DefaultVariable,
     External,
     Runtime,
@@ -63,6 +64,7 @@ impl ActionsSourceRef {
             .unwrap_or_else(|| match self.kind {
                 ActionsSourceKind::DefaultVariable => "GitHub built-in".to_string(),
                 ActionsSourceKind::External => "repository/org state".to_string(),
+                ActionsSourceKind::WorkflowInput => "workflow input".to_string(),
                 _ => self.detail.clone(),
             });
         match self.line {
@@ -114,6 +116,19 @@ pub struct ActionsVariable {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActionsInput {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionsStep {
     pub index: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -139,6 +154,8 @@ pub struct ActionsReport {
     pub workflow_file: PathBuf,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<ActionsInput>,
     pub jobs: Vec<ActionsJob>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagnostics: Vec<Diagnostic>,
@@ -223,7 +240,7 @@ const DEFAULT_VARIABLES: &[&str] = &[
 
 /// Contexts that cannot be resolved statically.
 const EXTERNAL_CONTEXTS: &[&str] = &[
-    "github", "secrets", "vars", "needs", "matrix", "inputs", "steps", "strategy", "job",
+    "github", "secrets", "vars", "needs", "matrix", "steps", "strategy", "job",
 ];
 
 #[derive(Debug, Clone)]
@@ -258,6 +275,8 @@ pub fn analyze_workflow(
         .get(Value::String("name".to_string()))
         .and_then(Value::as_str)
         .map(str::to_string);
+
+    let inputs = parse_workflow_inputs(document, &content);
 
     let diagnostics = Vec::new();
     let workflow_layer = parse_env_layer(
@@ -301,6 +320,7 @@ pub fn analyze_workflow(
                 job_file_layer.as_ref(),
             ],
             path,
+            &inputs,
         );
 
         let mut steps = Vec::new();
@@ -372,6 +392,7 @@ pub fn analyze_workflow(
                             step_file_layer.as_ref(),
                         ],
                         path,
+                        &inputs,
                     );
 
                     steps.push(ActionsStep {
@@ -400,12 +421,65 @@ pub fn analyze_workflow(
     Ok(ActionsReport {
         workflow_file: path.to_path_buf(),
         name,
+        inputs,
         jobs,
         diagnostics,
     })
 }
 
-/// Parse one `env:` block into an EnvLayer. The `file:` key (if present) is
+/// Parse `on: workflow_dispatch` / `on: workflow_call` input declarations.
+fn parse_workflow_inputs(document: &serde_yaml::Mapping, content: &str) -> Vec<ActionsInput> {
+    let Some(on_value) = document.get(Value::String("on".to_string())) else {
+        return Vec::new();
+    };
+    let Value::Mapping(on_map) = on_value else {
+        return Vec::new();
+    };
+    let mut inputs = Vec::new();
+    for trigger in ["workflow_dispatch", "workflow_call"] {
+        let Some(trigger_value) = on_map.get(Value::String(trigger.to_string())) else {
+            continue;
+        };
+        let Some(trigger_map) = trigger_value.as_mapping() else {
+            continue;
+        };
+        let Some(inputs_value) = trigger_map.get(Value::String("inputs".to_string())) else {
+            continue;
+        };
+        let Some(inputs_map) = inputs_value.as_mapping() else {
+            continue;
+        };
+        let trigger_line = find_line(content, &format!("{trigger}:"), 0);
+        for (key, spec) in inputs_map {
+            let Some(name) = key.as_str() else {
+                continue;
+            };
+            let (description, default, required) = match spec.as_mapping() {
+                Some(mapping) => (
+                    mapping
+                        .get(Value::String("description".to_string()))
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    mapping
+                        .get(Value::String("default".to_string()))
+                        .and_then(scalar_string),
+                    mapping
+                        .get(Value::String("required".to_string()))
+                        .and_then(Value::as_bool),
+                ),
+                None => (None, None, None),
+            };
+            inputs.push(ActionsInput {
+                name: name.to_string(),
+                description,
+                default,
+                required,
+                line: find_line(content, &format!("{name}:"), trigger_line.unwrap_or(0)),
+            });
+        }
+    }
+    inputs
+}
 /// kept as an ordinary entry so `parse_env_file_layer` can find it.
 fn parse_env_layer(
     value: Option<&Value>,
@@ -524,7 +598,11 @@ fn filter_layer(layer: &EnvLayer, keep: impl Fn(&str) -> bool) -> EnvLayer {
 /// Build the variable set for one scope by applying the visible layers in
 /// GitHub's precedence order (low → high): workflow env, job env, job env
 /// file, step env, step env file.
-fn build_variables(layers: &[Option<&EnvLayer>], workflow_path: &Path) -> Vec<ActionsVariable> {
+fn build_variables(
+    layers: &[Option<&EnvLayer>],
+    workflow_path: &Path,
+    inputs: &[ActionsInput],
+) -> Vec<ActionsVariable> {
     let mut variables: BTreeMap<String, ActionsVariable> = BTreeMap::new();
     for layer in layers.iter().flatten() {
         for entry in &layer.entries {
@@ -543,21 +621,24 @@ fn build_variables(layers: &[Option<&EnvLayer>], workflow_path: &Path) -> Vec<Ac
                     _ => "declaration",
                 },
             );
-            apply(&mut variables, entry, source);
+            apply(&mut variables, entry, source, workflow_path, inputs);
         }
     }
     variables.into_values().collect()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply(
     variables: &mut BTreeMap<String, ActionsVariable>,
     entry: &EnvEntry,
     source: ActionsSourceRef,
+    workflow_path: &Path,
+    inputs: &[ActionsInput],
 ) {
     let references = entry
         .value
         .as_deref()
-        .map(|raw| references_in(raw, variables))
+        .map(|raw| references_in(raw, variables, workflow_path, inputs))
         .unwrap_or_default();
     let builder = variables
         .entry(entry.key.clone())
@@ -599,6 +680,8 @@ fn apply(
 fn references_in(
     raw: &str,
     variables: &BTreeMap<String, ActionsVariable>,
+    workflow_path: &Path,
+    inputs: &[ActionsInput],
 ) -> Vec<ActionsReference> {
     let mut references = Vec::new();
     let mut rest = raw;
@@ -623,6 +706,17 @@ fn references_in(
                                 "GitHub built-in default",
                             )
                         })
+                })
+        } else if context == "inputs" {
+            let name = expression.strip_prefix("inputs.").map(str::trim);
+            name.and_then(|name| inputs.iter().find(|input| input.name == name))
+                .map(|input| {
+                    ActionsSourceRef::new(
+                        ActionsSourceKind::WorkflowInput,
+                        Some(workflow_path.to_path_buf()),
+                        input.line,
+                        "workflow input",
+                    )
                 })
         } else if EXTERNAL_CONTEXTS.contains(&context.as_str()) {
             Some(ActionsSourceRef::new(
@@ -712,6 +806,21 @@ pub fn actions_human(report: &ActionsReport, show_values: bool) -> String {
     let _ = writeln!(output, "workflow: {}", report.workflow_file.display());
     if let Some(name) = &report.name {
         let _ = writeln!(output, "name: {name}");
+    }
+    if !report.inputs.is_empty() {
+        let _ = writeln!(output, "workflow inputs:");
+        for input in &report.inputs {
+            let required = input
+                .required
+                .map(|required| if required { "required" } else { "optional" })
+                .unwrap_or("optional");
+            let default = input
+                .default
+                .as_deref()
+                .map(|default| format!(", default {default:?}"))
+                .unwrap_or_default();
+            let _ = writeln!(output, "  {:<24} {required}{default}", input.name);
+        }
     }
     for job in &report.jobs {
         let _ = writeln!(output, "\njob {}", job.id);
@@ -927,6 +1036,7 @@ fn source_summary(source: &ActionsSourceRef) -> String {
         ActionsSourceKind::JobEnv => "job env",
         ActionsSourceKind::StepEnv => "step env",
         ActionsSourceKind::EnvFile => "env file",
+        ActionsSourceKind::WorkflowInput => "workflow input",
         ActionsSourceKind::DefaultVariable => "GitHub built-in default",
         ActionsSourceKind::External => "external context",
         ActionsSourceKind::Runtime => "runtime",
@@ -1033,6 +1143,33 @@ mod tests {
         let persist = &job.steps[3];
         assert_eq!(persist.diagnostics.len(), 1);
         assert_eq!(persist.diagnostics[0].code, "github-env-runtime");
+    }
+
+    #[test]
+    fn resolves_workflow_dispatch_inputs() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/actions-inputs/.github/workflows/inputs.yaml");
+        let workflow = analyze_workflow(&path, None).unwrap();
+        assert_eq!(workflow.inputs.len(), 2);
+        let environment = workflow
+            .inputs
+            .iter()
+            .find(|input| input.name == "environment")
+            .unwrap();
+        assert_eq!(environment.required, Some(true));
+        let job = workflow.jobs.iter().find(|job| job.id == "deploy").unwrap();
+        let target = job
+            .variables
+            .iter()
+            .find(|variable| variable.variable == "TARGET_ENV")
+            .unwrap();
+        let reference = &target.references[0];
+        assert_eq!(reference.expression, "inputs.environment");
+        assert_eq!(reference.context, "inputs");
+        assert!(matches!(
+            reference.source.as_ref().unwrap().kind,
+            ActionsSourceKind::WorkflowInput
+        ));
     }
 
     fn parse_fixture(name: &str) -> ActionsReport {

@@ -1,0 +1,7 @@
+services:
+  web:
+    image: nginx
+    env_file:
+      - ./env/plain.env
+      - path: ./env/raw.env
+        format: raw

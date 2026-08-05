@@ -90,19 +90,48 @@ pub fn analyze(options: &AnalyzeOptions) -> Result<ProjectReport, AnalysisError>
         }
     }
 
-    let interpolation_files = if options.env_files.is_empty() {
+    // COMPOSE_ENV_FILES lists interpolation files (separated by the OS path
+    // separator) and replaces the default .env lookup. Explicit --env-file
+    // arguments take precedence, mirroring Docker Compose's resolution.
+    let env_files_from_compose = context
+        .get("COMPOSE_ENV_FILES")
+        .map(|value| {
+            value
+                .split([':', ';'])
+                .map(str::trim)
+                .filter(|part| !part.is_empty())
+                .map(|part| project_directory.join(part))
+                .collect::<Vec<_>>()
+        })
+        .filter(|paths| !paths.is_empty());
+
+    let interpolation_files = if !options.env_files.is_empty() {
+        options
+            .env_files
+            .iter()
+            .map(|path| absolute(path))
+            .collect::<Result<Vec<_>, _>>()?
+    } else if let Some(paths) = env_files_from_compose {
+        let mut files = Vec::new();
+        for path in paths {
+            if path.exists() {
+                files.push(path);
+            } else {
+                diagnostics.push(Diagnostic::new(
+                    Severity::Warning,
+                    "compose-env-files-missing",
+                    format!("COMPOSE_ENV_FILES entry does not exist: {}", path.display()),
+                ));
+            }
+        }
+        files
+    } else {
         let default = project_directory.join(".env");
         if default.exists() {
             vec![default]
         } else {
             Vec::new()
         }
-    } else {
-        options
-            .env_files
-            .iter()
-            .map(|path| absolute(path))
-            .collect::<Result<Vec<_>, _>>()?
     };
 
     for (index, path) in interpolation_files.iter().enumerate() {
@@ -139,13 +168,6 @@ pub fn analyze(options: &AnalyzeOptions) -> Result<ProjectReport, AnalysisError>
         }
     }
 
-    if context.contains("COMPOSE_ENV_FILES") {
-        diagnostics.push(Diagnostic::new(
-            Severity::Warning,
-            "unsupported-compose-env-files",
-            "COMPOSE_ENV_FILES is set; v0.1 does not automatically expand that file list",
-        ));
-    }
     if context.contains("COMPOSE_FILE") {
         diagnostics.push(Diagnostic::new(
             Severity::Warning,

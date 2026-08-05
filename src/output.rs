@@ -64,6 +64,20 @@ pub fn project_human(report: &ProjectReport, show_values: bool) -> String {
                 "  {:<24} {:<7} {:<24} ← {}",
                 variable.variable, state, rendered, source
             );
+            for candidate in &variable.candidates {
+                // Dead-code hint: the candidate lost to a higher-precedence
+                // layer with a different value, so it can be removed safely.
+                if candidate.disposition == CandidateDisposition::Shadowed
+                    && candidate.value.as_deref() != variable.value.as_deref()
+                {
+                    let _ = writeln!(
+                        output,
+                        "    note: {} is shadowed by {} (different value)",
+                        source_summary(&candidate.source),
+                        source
+                    );
+                }
+            }
         }
     }
 

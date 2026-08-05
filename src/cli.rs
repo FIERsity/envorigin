@@ -6,8 +6,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 #[command(
     name = "envorigin",
     version,
-    about = "Explain where Docker Compose environment variables come from",
-    long_about = "EnvOrigin builds a provenance chain across shell variables, Compose interpolation files, service env_file entries, and service environment overrides. Values are redacted unless --show-values is passed."
+    about = "Explain where environment variables come from",
+    long_about = "EnvOrigin builds a provenance chain for environment variables in Docker Compose projects and GitHub Actions workflows: across shell variables, interpolation files, env_file layers, and environment overrides. Values are redacted unless --show-values is passed."
 )]
 pub struct Cli {
     #[command(subcommand)]

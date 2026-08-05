@@ -270,3 +270,130 @@ fn actions_json_output_redacts_and_keeps_expressions() {
         .unwrap()
         .contains("${{ env.JOB_LEVEL }}"));
 }
+
+// --- raw env_file format ---
+
+#[test]
+fn raw_env_file_skips_interpolation_plain_env_file_does_not() {
+    let raw_fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/raw/compose.yaml")
+        .display()
+        .to_string();
+    let mut plain = Command::cargo_bin("envorigin").unwrap();
+    plain
+        .args([
+            "explain",
+            "PLAIN_REF",
+            "-s",
+            "web",
+            "--show-values",
+            "--no-docker-check",
+            "--file",
+        ])
+        .arg(&raw_fixture)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"from_dotenv\""));
+    let mut raw = Command::cargo_bin("envorigin").unwrap();
+    raw.args([
+        "explain",
+        "RAW_REF",
+        "-s",
+        "web",
+        "--show-values",
+        "--no-docker-check",
+        "--file",
+    ])
+    .arg(&raw_fixture)
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("\"${BASE}\""))
+    .stdout(predicate::str::contains("from_dotenv").not());
+}
+
+// --- COMPOSE_ENV_FILES ---
+
+fn env_files_fixture() -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/env-files/compose.yaml")
+        .display()
+        .to_string()
+}
+
+#[test]
+fn compose_env_files_expands_and_later_files_win() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .env("COMPOSE_ENV_FILES", "env/a.env:env/b.env")
+        .args(["scan", "--show-values", "--no-docker-check", "--file"])
+        .arg(env_files_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"from_a\""))
+        .stdout(predicate::str::contains("\"from_b\""))
+        .stdout(predicate::str::contains("\"b\""));
+}
+
+#[test]
+fn compose_env_files_missing_entry_warns_and_continues() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .env("COMPOSE_ENV_FILES", "env/a.env:does-not-exist.env")
+        .args(["scan", "--no-docker-check", "--file"])
+        .arg(env_files_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("compose-env-files-missing"))
+        .stdout(predicate::str::contains("\"from_a\"").not())
+        .stdout(predicate::str::contains("does-not-exist.env"));
+}
+
+// --- shadowing diagnostics ---
+
+#[test]
+fn scan_marks_shadowed_dead_code_lines() {
+    let output = command("scan", "precedence").assert().success();
+    output
+        .stdout(predicate::str::contains("is shadowed by"))
+        .stdout(predicate::str::contains("env/web.env:1"));
+}
+
+#[test]
+fn scan_omits_shadow_notes_when_nothing_is_shadowed() {
+    let output = command("scan", "basic").assert().success();
+    output.stdout(predicate::str::contains("is shadowed by").not());
+}
+
+// --- workflow inputs ---
+
+#[test]
+fn actions_explain_resolves_declared_inputs() {
+    let inputs_fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/actions-inputs/.github/workflows/inputs.yaml")
+        .display()
+        .to_string();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args([
+            "actions",
+            "explain",
+            "TARGET_ENV",
+            "-j",
+            "deploy",
+            "--show-values",
+            "--file",
+        ])
+        .arg(&inputs_fixture)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("inputs.environment"))
+        .stdout(predicate::str::contains("workflow input"))
+        .stdout(predicate::str::contains("inputs.yaml:5"));
+    let mut scan = Command::cargo_bin("envorigin").unwrap();
+    scan.args(["actions", "scan", "--file"])
+        .arg(&inputs_fixture)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("workflow inputs:"))
+        .stdout(predicate::str::contains("dry_run"));
+}

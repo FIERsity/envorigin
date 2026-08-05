@@ -69,8 +69,8 @@ Requires Rust 1.85+.
 ## Usage
 
 ```text
-EnvOrigin 0.1.0
-Explain where Docker Compose environment variables come from
+EnvOrigin 0.3.0
+Explain where environment variables come from
 
 Usage: envorigin <COMMAND>
 
@@ -102,7 +102,7 @@ Common flags for `scan`/`explain`:
 ```text
 $ envorigin scan
 
-EnvOrigin 0.1.0
+EnvOrigin 0.3.0
 compose: /app/compose.yaml
 docker verification: verified
 interpolation files: /app/.env
@@ -196,13 +196,18 @@ Flags: `-f/--file` (default `.github/workflows/ci.yml`), `-j/--job`,
 - **`src/output.rs`** — human and JSON renderers, default redaction with
   SHA-256 fingerprints.
 
-Deliberate v0.1 scope: Compose files only (no standalone `.env` tooling), and
-the two rules from Compose's interpolation set — `COMPOSE_FILE` and
-`COMPOSE_ENV_FILES` — produce warnings rather than automatic expansion.
-`actions` is static analysis: `GITHUB_ENV` writes are flagged as runtime-only,
-and GitHub does not document the precedence of a `file:` key mixed with
-regular keys in one `env:` block — EnvOrigin applies the file layer after the
-map (same order as Compose `env_file`).
+Semantics notes:
+
+- `COMPOSE_ENV_FILES` is expanded (path-separator split, relative to the
+  project directory, replacing the default `.env` lookup); missing entries
+  produce a `compose-env-files-missing` warning and are skipped. Explicit
+  `--env-file` arguments take precedence over it, mirroring Docker Compose.
+- `COMPOSE_FILE` is not followed; it produces a `compose-file-redirect`
+  warning telling you to pass `--file` explicitly.
+- `actions` is static analysis: `GITHUB_ENV` writes are flagged as
+  runtime-only, and GitHub does not document the precedence of a `file:` key
+  mixed with regular keys in one `env:` block — EnvOrigin applies the file
+  layer after the map (same order as Compose `env_file`).
 
 ## Testing
 
@@ -210,19 +215,21 @@ map (same order as Compose `env_file`).
 cargo test
 ```
 
-28 tests: unit tests for the dotenv parser, the interpolator, Compose
+35 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, and the Actions layer
 resolution; plus end-to-end CLI tests against
-`tests/fixtures/{basic,precedence,actions}` that assert redaction, derivation
-tracking, the full shadowing chain, and expression-reference resolution. CI
-runs `fmt` + `clippy -D warnings` + tests on Ubuntu.
+`tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs}`
+that assert redaction, derivation tracking, the full shadowing chain,
+`COMPOSE_ENV_FILES` expansion, `format: raw` semantics, and
+expression-reference resolution. CI runs `fmt` + `clippy -D warnings` +
+tests on Ubuntu.
 
 ## Roadmap
 
-- [ ] `--env-file` precedence diagnostics (later files winning silently)
-- [ ] `COMPOSE_ENV_FILES` support
-- [ ] `env_file` `format: raw` end-to-end coverage
-- [ ] workflow `on:` dispatch context (inputs, reusable workflows)
+- [ ] standalone `.env` tooling (`envorigin dotenv ...`)
+- [ ] shell completion and `--debug` tracing of the resolution decision
+- [ ] `.env`-style diagnostics for job/step env files in `actions`
+- [ ] `COMPOSE_FILE` following
 
 ## License
 

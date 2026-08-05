@@ -1,0 +1,7 @@
+services:
+  web:
+    image: nginx
+    environment:
+      FROM_FIRST:
+      FROM_SECOND:
+      SHARED:

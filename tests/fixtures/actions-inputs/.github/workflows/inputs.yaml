@@ -1,0 +1,22 @@
+name: Inputs CI
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Where to deploy
+        required: true
+        type: environment
+      dry_run:
+        description: Skip the deploy
+        type: boolean
+        default: "true"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_ENV: ${{ inputs.environment }}
+      DRY: ${{ inputs.dry_run }}
+    steps:
+      - name: Deploy
+        run: echo "deploying to $TARGET_ENV"
