@@ -4,6 +4,20 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-08-06
+
+### Added
+
+- VS Code extension packaging verified (`npx @vscode/vsce package` +
+  `code --install-extension`), version synced with the CLI.
+- LSP E2E coverage for all compose filename variants; performance
+  documentation (800-variable project scans in ~0.3s).
+
+### Testing
+
+- Unit coverage for graph rendering across all four backends (36 unit
+  tests total).
+
 ## [0.5.1] - 2026-08-06
 
 ### Fixed
