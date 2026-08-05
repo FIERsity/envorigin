@@ -575,3 +575,70 @@ fn actions_graph_renders_job_step_and_sources() {
         .stdout(predicate::str::contains("step_"))
         .stdout(predicate::str::contains("-->|\"StepEnv\"|"));
 }
+
+// --- GitLab CI ---
+
+fn gitlab_fixture() -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/gitlab/.gitlab-ci.yml")
+        .display()
+        .to_string()
+}
+
+fn gitlab_command(subcommand: &str) -> Command {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("gitlab")
+        .arg(subcommand)
+        .arg("--file")
+        .arg(gitlab_fixture());
+    command
+}
+
+#[test]
+fn gitlab_scan_lists_globals_jobs_and_includes() {
+    let output = gitlab_command("scan").assert().success();
+    output
+        .stdout(predicate::str::contains("GitLab CI analysis"))
+        .stdout(predicate::str::contains("global variables:"))
+        .stdout(predicate::str::contains("job build"))
+        .stdout(predicate::str::contains("include files:"))
+        .stdout(predicate::str::contains("gitlab-include-external"));
+}
+
+#[test]
+fn gitlab_explain_tracks_interpolation_references() {
+    let output = gitlab_command("explain")
+        .args(["BUILD_ID", "-j", "build", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("references:"))
+        .stdout(predicate::str::contains("CI_PIPELINE_ID"))
+        .stdout(predicate::str::contains("GitLab predefined"))
+        .stdout(predicate::str::contains("APP_NAME"));
+}
+
+#[test]
+fn gitlab_explain_shows_include_shadowing_chain() {
+    let output = gitlab_command("explain")
+        .args(["APP_NAME", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("winner: global variables"))
+        .stdout(predicate::str::contains("[shadowed] include file"))
+        .stdout(predicate::str::contains("include_app_name"));
+}
+
+#[test]
+fn gitlab_explain_job_override_wins() {
+    let output = gitlab_command("explain")
+        .args(["GLOBAL_ONLY", "-j", "build", "--show-values"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("winner: job variables"))
+        .stdout(predicate::str::contains("overridden_in_job"))
+        .stdout(predicate::str::contains("[shadowed] global variables"));
+}

@@ -26,8 +26,48 @@ pub enum Command {
     Diff(DiffArgs),
     /// Render a mermaid provenance graph of the environment.
     Graph(GraphArgs),
+    /// Analyze a GitLab CI configuration's variables.
+    Gitlab(GitlabArgs),
     /// Analyze a GitHub Actions workflow's environment variables.
     Actions(ActionsArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct GitlabArgs {
+    #[command(subcommand)]
+    pub command: GitlabCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum GitlabCommand {
+    /// List the variables defined globally and per job.
+    Scan(GitlabScanArgs),
+    /// Explain the winning and shadowed sources for one variable.
+    Explain(GitlabExplainArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct GitlabScanArgs {
+    /// GitLab CI file to analyze.
+    #[arg(long = "file", short = 'f', default_value = ".gitlab-ci.yml")]
+    pub file: PathBuf,
+    /// Reveal values. By default values are replaced by a short SHA-256 fingerprint.
+    #[arg(long)]
+    pub show_values: bool,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
+    pub format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+pub struct GitlabExplainArgs {
+    /// Environment variable name to explain.
+    pub variable: String,
+    /// Job to inspect. Omit to explain the file-global variable.
+    #[arg(long, short = 'j')]
+    pub job: Option<String>,
+    #[command(flatten)]
+    pub common: GitlabScanArgs,
 }
 
 #[derive(Debug, Args)]

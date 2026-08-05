@@ -5,6 +5,7 @@ pub mod compose;
 pub mod diff;
 pub mod docker;
 pub mod dotenv;
+pub mod gitlab;
 pub mod graph;
 pub mod interpolation;
 pub mod model;
@@ -53,7 +54,7 @@ pub fn analyze(options: &AnalyzeOptions) -> Result<ProjectReport, AnalysisError>
     };
 
     let mut diagnostics = Vec::new();
-    let mut context = InterpolationContext::new();
+    let mut context = InterpolationContext::<SourceRef>::new();
 
     let host_values: BTreeMap<String, String> = env::vars().collect();
     for (key, value) in host_values {

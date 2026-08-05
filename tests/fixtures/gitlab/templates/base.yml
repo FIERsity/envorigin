@@ -1,0 +1,3 @@
+variables:
+  FROM_INCLUDE: include_value
+  APP_NAME: include_app_name

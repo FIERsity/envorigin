@@ -2,48 +2,61 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::model::{Diagnostic, Severity, SourceRef};
+use crate::model::{Diagnostic, Severity};
 
 #[derive(Debug, Clone)]
-struct Definition {
+struct Definition<S> {
     value: Option<String>,
-    source: SourceRef,
+    source: S,
     precedence: i32,
     order: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct InterpolationReference {
+pub struct InterpolationReference<S> {
     pub variable: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<SourceRef>,
+    pub source: Option<S>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct InterpolationResult {
+#[derive(Debug, Clone)]
+pub struct InterpolationResult<S> {
     pub value: String,
-    pub references: Vec<InterpolationReference>,
+    pub references: Vec<InterpolationReference<S>>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct InterpolationContext {
-    definitions: HashMap<String, Vec<Definition>>,
+#[derive(Debug, Clone)]
+pub struct InterpolationContext<S> {
+    definitions: HashMap<String, Vec<Definition<S>>>,
     next_order: usize,
 }
 
-impl InterpolationContext {
+impl<S> Default for InterpolationResult<S> {
+    fn default() -> Self {
+        Self {
+            value: String::new(),
+            references: Vec::new(),
+            diagnostics: Vec::new(),
+        }
+    }
+}
+
+impl<S> Default for InterpolationContext<S> {
+    fn default() -> Self {
+        Self {
+            definitions: HashMap::new(),
+            next_order: 0,
+        }
+    }
+}
+
+impl<S: Clone> InterpolationContext<S> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn define(
-        &mut self,
-        key: String,
-        value: Option<String>,
-        source: SourceRef,
-        precedence: i32,
-    ) {
+    pub fn define(&mut self, key: String, value: Option<String>, source: S, precedence: i32) {
         let definition = Definition {
             value,
             source,
@@ -65,11 +78,11 @@ impl InterpolationContext {
             .and_then(|definition| definition.value.as_deref())
     }
 
-    pub fn source(&self, key: &str) -> Option<&SourceRef> {
+    pub fn source(&self, key: &str) -> Option<&S> {
         self.selected(key).map(|definition| &definition.source)
     }
 
-    pub fn interpolate_if(&self, input: &str, enabled: bool) -> InterpolationResult {
+    pub fn interpolate_if(&self, input: &str, enabled: bool) -> InterpolationResult<S> {
         if enabled {
             self.interpolate(input)
         } else {
@@ -80,7 +93,7 @@ impl InterpolationContext {
         }
     }
 
-    pub fn interpolate(&self, input: &str) -> InterpolationResult {
+    pub fn interpolate(&self, input: &str) -> InterpolationResult<S> {
         let mut result = InterpolationResult::default();
         let chars: Vec<char> = input.chars().collect();
         let mut index = 0;
@@ -146,14 +159,14 @@ impl InterpolationContext {
         result
     }
 
-    fn selected(&self, key: &str) -> Option<&Definition> {
+    fn selected(&self, key: &str) -> Option<&Definition<S>> {
         self.definitions
             .get(key)?
             .iter()
             .max_by_key(|definition| (definition.precedence, definition.order))
     }
 
-    fn append_lookup(&self, variable: &str, result: &mut InterpolationResult, warn: bool) {
+    fn append_lookup(&self, variable: &str, result: &mut InterpolationResult<S>, warn: bool) {
         let definition = self.selected(variable);
         result.references.push(InterpolationReference {
             variable: variable.to_string(),
@@ -170,7 +183,7 @@ impl InterpolationContext {
         }
     }
 
-    fn evaluate_expression(&self, expression: &str, result: &mut InterpolationResult) {
+    fn evaluate_expression(&self, expression: &str, result: &mut InterpolationResult<S>) {
         let (variable, operator, word) = split_expression(expression);
         if variable.is_empty()
             || !variable.chars().enumerate().all(|(index, ch)| {
@@ -246,7 +259,7 @@ impl InterpolationContext {
         }
     }
 
-    fn append_word(&self, word: &str, result: &mut InterpolationResult) {
+    fn append_word(&self, word: &str, result: &mut InterpolationResult<S>) {
         let nested = self.interpolate(word);
         result.value.push_str(&nested.value);
         result.references.extend(nested.references);
@@ -295,9 +308,11 @@ fn split_expression(expression: &str) -> (&str, Option<&str>, &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::SourceKind;
+    use crate::model::{SourceKind, SourceRef};
 
-    fn context(values: &[(&str, Option<&str>)]) -> InterpolationContext {
+    type TestContext = InterpolationContext<crate::model::SourceRef>;
+
+    fn context(values: &[(&str, Option<&str>)]) -> TestContext {
         let mut context = InterpolationContext::new();
         for (index, (key, value)) in values.iter().enumerate() {
             context.define(

@@ -146,7 +146,7 @@ pub fn analyze_service(
     name: &str,
     service: &Service,
     compose_file: &Path,
-    context: &InterpolationContext,
+    context: &InterpolationContext<SourceRef>,
     canonical: Option<&BTreeMap<String, Option<String>>>,
 ) -> Result<ServiceReport, AnalysisError> {
     let compose_directory = compose_file.parent().unwrap_or_else(|| Path::new("."));

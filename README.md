@@ -80,6 +80,7 @@ Commands:
   audit    Audit a project for env health issues (sensitive values, dead code)
   diff     Compare environment drift across dotenv files
   graph    Render a mermaid provenance graph of the environment
+  gitlab   Analyze a GitLab CI configuration's variables
   actions  Analyze a GitHub Actions workflow's environment variables
   help     Print this message or the help of the given subcommand(s)
 
@@ -252,6 +253,28 @@ Solid edges point at the winning source, dashed edges at shadowed candidates
 renders the workflow's job/step/variable/source layout. Output has been
 validated against the mermaid renderer.
 
+### `gitlab`
+
+Layered resolution for `.gitlab-ci.yml` `variables:`: included files
+(`include: local`) < file-global < job-level. `$VAR` / `${VAR}` interpolation
+is tracked per reference, and — unlike Compose — definitions may reference
+each other in any order (GitLab semantics), so values are resolved in a
+second pass over all definitions. `include: remote` / `include: template`
+are reported as external and not fetched. Statically-known predefined
+variables (`CI_*`, `GITLAB_*`, `RUNNER_*`) are labelled as GitLab predefined.
+
+```text
+$ envorigin gitlab explain BUILD_ID -j build --show-values
+
+BUILD_ID in .gitlab-ci.yml
+state: set
+value: "-demo"
+winner: job variables (.gitlab-ci.yml:20)
+references:
+  - $CI_PIPELINE_ID → GitLab predefined (GitLab predefined)
+  - $APP_NAME → global variables (.gitlab-ci.yml:7)
+```
+
 ## Design
 
 - **`src/compose.rs`** — Compose model (env_file specs, environment forms) and
@@ -288,7 +311,7 @@ Semantics notes:
 cargo test
 ```
 
-47 tests: unit tests for the dotenv parser, the interpolator, Compose
+51 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
@@ -317,7 +340,9 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
       graph (solid = winner, dashed = shadowed, dashed-derived = dependency);
       output validated against the mermaid renderer
 - [ ] LSP server + VS Code extension (hover source, jump-to-definition, live diagnostics)
-- [ ] GitLab CI / CircleCI env syntax support
+- [x] GitLab CI variables support (include < global < job; `$VAR`
+      reference tracking; predefined variables)
+- [ ] CircleCI env syntax support
 
 **Phase 3 — ecosystem**
 - [ ] crates.io release (`cargo install envorigin`) + Homebrew tap

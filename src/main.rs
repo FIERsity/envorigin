@@ -5,8 +5,13 @@ use envorigin::actions::{
     actions_human, actions_json, actions_variable_human, actions_variable_json,
 };
 use envorigin::audit::{audit_human, audit_project, audit_workflow, AuditIssue};
-use envorigin::cli::{ActionsCommand, Cli, Command, CommonArgs, FailLevel, OutputFormat};
+use envorigin::cli::{
+    ActionsCommand, Cli, Command, CommonArgs, FailLevel, GitlabCommand, OutputFormat,
+};
 use envorigin::diff::{diff_files, diff_human, diff_json};
+use envorigin::gitlab::{
+    analyze_gitlab, gitlab_human, gitlab_json, gitlab_variable_human, gitlab_variable_json,
+};
 use envorigin::graph::{actions_graph, project_graph};
 use envorigin::model::AnalysisError;
 use envorigin::output::{
@@ -93,6 +98,27 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             let report = analyze(&options(&args.common))?;
             Ok(outcome(project_graph(&report)))
         }
+        Command::Gitlab(args) => match args.command {
+            GitlabCommand::Scan(scan) => {
+                let report = analyze_gitlab(&scan.file)?;
+                Ok(outcome(match scan.format {
+                    OutputFormat::Human => gitlab_human(&report, scan.show_values),
+                    OutputFormat::Json => gitlab_json(&report, scan.show_values),
+                }))
+            }
+            GitlabCommand::Explain(explain) => {
+                let report = analyze_gitlab(&explain.common.file)?;
+                let variable = report.explain(explain.job.as_deref(), &explain.variable)?;
+                Ok(outcome(match explain.common.format {
+                    OutputFormat::Human => {
+                        gitlab_variable_human(&report, variable, explain.common.show_values)
+                    }
+                    OutputFormat::Json => {
+                        gitlab_variable_json(&report, variable, explain.common.show_values)
+                    }
+                }))
+            }
+        },
         Command::Actions(args) => match args.command {
             ActionsCommand::Scan(scan) => {
                 let report = envorigin::actions::analyze_workflow(

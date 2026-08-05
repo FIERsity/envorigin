@@ -1,0 +1,29 @@
+include:
+  - local: /templates/base.yml
+  - remote: https://example.com/team-template.yml
+  - template: Security/SAST.gitlab-ci.yml
+
+variables:
+  APP_NAME: demo
+  REGISTRY: registry.gitlab.example.com
+  IMAGE: $REGISTRY/$APP_NAME:latest
+  GLOBAL_ONLY: from_global
+
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  variables:
+    GLOBAL_ONLY: overridden_in_job
+    BUILD_ID: $CI_PIPELINE_ID-$APP_NAME
+  script:
+    - echo "building"
+
+test:
+  stage: test
+  variables:
+    TEST_MODE: strict
+  script:
+    - echo "testing"
