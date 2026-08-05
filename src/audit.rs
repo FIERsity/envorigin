@@ -516,3 +516,83 @@ fn severity_label(severity: Severity) -> &'static str {
         Severity::Error => "error",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sensitive_name_detection() {
+        assert!(is_sensitive("API_TOKEN"));
+        assert!(is_sensitive("DB_PASSWORD"));
+        assert!(is_sensitive("aws_access_key_id"));
+        assert!(is_sensitive("private_key_path"));
+        assert!(!is_sensitive("DATABASE_URL"));
+        assert!(!is_sensitive("APP_NAME"));
+    }
+
+    #[test]
+    fn placeholder_detection_boundaries() {
+        // Placeholder-looking values downgrade the report.
+        assert!(is_placeholder_value("wordpress"));
+        assert!(is_placeholder_value("somewordpress"));
+        assert!(is_placeholder_value("changeit"));
+        assert!(is_placeholder_value("changeme"));
+        // Real-looking values with digits/mixed case are NOT placeholders —
+        // regression for the sk-live-12345 false positive.
+        assert!(!is_placeholder_value("sk-live-12345"));
+        assert!(!is_placeholder_value("Tr0ub4dor&3"));
+        assert!(!is_placeholder_value("hf_0123456789abcdef"));
+    }
+
+    #[test]
+    fn secret_manager_reference_detection() {
+        assert_eq!(
+            secret_manager_ref("vault:secret/data/db#password"),
+            Some("HashiCorp Vault")
+        );
+        assert_eq!(
+            secret_manager_ref("arn:aws:secretsmanager:us-east-1:123:secret:db"),
+            Some("AWS Secrets Manager")
+        );
+        assert_eq!(secret_manager_ref("sm://prod/db"), Some("AWS SSM"));
+        assert_eq!(
+            secret_manager_ref("{{ secret.DEPLOY_KEY }}"),
+            Some("secret templating")
+        );
+        assert_eq!(secret_manager_ref("plain-value"), None);
+    }
+
+    #[test]
+    fn sensitive_checks_emit_the_right_severity() {
+        let mut issues = Vec::new();
+        check_sensitive_value(
+            &mut issues,
+            "TOKEN",
+            "sk-live-12345",
+            Some(PathBuf::from("compose.yaml")),
+            Some(9),
+        );
+        check_sensitive_value(
+            &mut issues,
+            "PASSWORD",
+            "changeit",
+            Some(PathBuf::from("compose.yaml")),
+            Some(10),
+        );
+        check_sensitive_value(
+            &mut issues,
+            "VAULT_TOKEN",
+            "vault:secret/data/db#password",
+            None,
+            None,
+        );
+        assert_eq!(issues.len(), 3);
+        assert_eq!(issues[0].code, "sensitive-value");
+        assert_eq!(issues[0].severity, Severity::Error);
+        assert_eq!(issues[1].code, "sensitive-placeholder");
+        assert_eq!(issues[1].severity, Severity::Warning);
+        assert_eq!(issues[2].code, "secret-manager-reference");
+        assert_eq!(issues[2].severity, Severity::Info);
+    }
+}
