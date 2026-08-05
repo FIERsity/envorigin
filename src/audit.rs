@@ -222,8 +222,13 @@ pub fn audit_project(
         }
     }
     if let Some(rules) = rules {
-        let names: Vec<String> = consumed.iter().map(|name| (*name).to_string()).collect();
-        issues.extend(crate::rules::check_rules(&names, rules));
+        let variables: Vec<(String, Option<String>)> = report
+            .services
+            .iter()
+            .flat_map(|service| service.variables.iter())
+            .map(|variable| (variable.variable.clone(), variable.value.clone()))
+            .collect();
+        issues.extend(crate::rules::check_rules(&variables, rules));
     }
     issues
 }
@@ -294,19 +299,19 @@ pub fn audit_workflow(
         }
     }
     if let Some(rules) = rules {
-        let mut names: Vec<String> = report
+        let mut variables: Vec<(String, Option<String>)> = report
             .jobs
             .iter()
             .flat_map(|job| {
                 job.variables
                     .iter()
                     .chain(job.steps.iter().flat_map(|step| step.variables.iter()))
-                    .map(|variable| variable.variable.clone())
+                    .map(|variable| (variable.variable.clone(), variable.value.clone()))
             })
             .collect();
-        names.sort();
-        names.dedup();
-        issues.extend(crate::rules::check_rules(&names, rules));
+        variables.sort();
+        variables.dedup();
+        issues.extend(crate::rules::check_rules(&variables, rules));
     }
     deduplicate(issues)
 }
@@ -328,8 +333,9 @@ pub fn audit_gitlab(
         audit_variable(&mut issues, variable, &mut seen);
     }
     if let Some(rules) = rules {
-        let names: Vec<String> = seen.iter().cloned().collect();
-        issues.extend(crate::rules::check_rules(&names, rules));
+        let variables: Vec<(String, Option<String>)> =
+            seen.iter().map(|name| (name.clone(), None)).collect();
+        issues.extend(crate::rules::check_rules(&variables, rules));
     }
     deduplicate(issues)
 }
@@ -347,8 +353,9 @@ pub fn audit_circleci(
         audit_variable(&mut issues, variable, &mut seen);
     }
     if let Some(rules) = rules {
-        let names: Vec<String> = seen.iter().cloned().collect();
-        issues.extend(crate::rules::check_rules(&names, rules));
+        let variables: Vec<(String, Option<String>)> =
+            seen.iter().map(|name| (name.clone(), None)).collect();
+        issues.extend(crate::rules::check_rules(&variables, rules));
     }
     deduplicate(issues)
 }

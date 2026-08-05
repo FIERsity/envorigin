@@ -2,3 +2,6 @@
 required = ["DATABASE_URL", "LOG_LEVEL"]
 prefix = "APP_"
 forbidden = ["CI"]
+
+[patterns]
+DATABASE_URL = "^postgres(ql)?://"
