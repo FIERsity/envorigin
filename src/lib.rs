@@ -2,6 +2,7 @@ pub mod actions;
 pub mod audit;
 pub mod cli;
 pub mod compose;
+pub mod diff;
 pub mod docker;
 pub mod dotenv;
 pub mod interpolation;

@@ -58,7 +58,7 @@ impl From<&Diagnostic> for AuditIssue {
 }
 
 /// Variable names that suggest they carry credentials or keys.
-fn is_sensitive(name: &str) -> bool {
+pub(crate) fn is_sensitive(name: &str) -> bool {
     let pattern = Regex::new(
         r"(?i)TOKEN|SECRET|PASSWORD|PASSWD|API.?KEY|ACCESS.?KEY|PRIVATE.?KEY|CREDENTIAL|AUTH|PWD",
     )
@@ -66,8 +66,48 @@ fn is_sensitive(name: &str) -> bool {
     pattern.is_match(name)
 }
 
+/// Values that are clearly placeholders or examples rather than real
+/// credentials (e.g. `wordpress`, `changeit`, `somewordpress`).
+fn is_placeholder_value(value: &str) -> bool {
+    let lower = value.to_lowercase();
+    if lower.chars().all(|ch| ch.is_ascii_lowercase()) && lower.len() < 16 {
+        return true;
+    }
+    let placeholder_pattern = Regex::new(
+        r"(?i)changeme|changeit|example|dummy|foobar|qwerty|letmein|secret|password|your_|xxxx",
+    )
+    .expect("valid regex");
+    placeholder_pattern.is_match(value)
+}
+
 fn is_expression(value: &str) -> bool {
     value.contains("${{") && value.contains("}}")
+}
+
+fn check_sensitive_value(
+    issues: &mut Vec<AuditIssue>,
+    name: &str,
+    value: &str,
+    path: Option<PathBuf>,
+    line: Option<usize>,
+) {
+    if is_placeholder_value(value) {
+        issues.push(AuditIssue::new(
+            Severity::Warning,
+            "sensitive-placeholder",
+            format!("{name} is set to a placeholder-looking value; replace it before deploying"),
+            path,
+            line,
+        ));
+    } else {
+        issues.push(AuditIssue::new(
+            Severity::Error,
+            "sensitive-value",
+            format!("{name} is set to a concrete value; verify it is not a real credential"),
+            path,
+            line,
+        ));
+    }
 }
 
 pub fn audit_project(report: &ProjectReport) -> Vec<AuditIssue> {
@@ -77,6 +117,10 @@ pub fn audit_project(report: &ProjectReport) -> Vec<AuditIssue> {
     }
 
     let mut consumed: HashSet<&str> = HashSet::new();
+    // Original file texts: interpolated values lose the expression text, so
+    // reference detection must look at the raw sources, not the final values.
+    let mut source_files: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+    source_files.insert(report.compose_file.clone());
     for service in &report.services {
         for variable in &service.variables {
             consumed.insert(variable.variable.as_str());
@@ -89,19 +133,19 @@ pub fn audit_project(report: &ProjectReport) -> Vec<AuditIssue> {
                         .winner
                         .as_ref()
                         .map(|winner| (winner.path.clone(), winner.line));
-                    issues.push(AuditIssue::new(
-                        Severity::Error,
-                        "sensitive-value",
-                        format!(
-                            "{} is set to a concrete value; verify it is not a real credential",
-                            variable.variable
-                        ),
+                    check_sensitive_value(
+                        &mut issues,
+                        &variable.variable,
+                        value,
                         location.as_ref().and_then(|(path, _)| path.clone()),
                         location.and_then(|(_, line)| line),
-                    ));
+                    );
                 }
             }
             for candidate in &variable.candidates {
+                if let Some(path) = &candidate.source.path {
+                    source_files.insert(path.clone());
+                }
                 if candidate.disposition == CandidateDisposition::Shadowed
                     && candidate.value.as_deref() != variable.value.as_deref()
                 {
@@ -119,13 +163,21 @@ pub fn audit_project(report: &ProjectReport) -> Vec<AuditIssue> {
             }
         }
     }
+    let file_texts: Vec<String> = source_files
+        .iter()
+        .map(|path| std::fs::read_to_string(path).unwrap_or_default())
+        .collect();
 
     for path in &report.interpolation_files {
         let Ok(parsed) = parse_dotenv_file(path) else {
             continue;
         };
         for entry in parsed.entries {
-            if !consumed.contains(entry.key.as_str()) {
+            let referenced = file_texts.iter().any(|text| {
+                text.contains(&format!("${{{}}}", entry.key))
+                    || text.contains(&format!("${}", entry.key))
+            });
+            if !consumed.contains(entry.key.as_str()) && !referenced {
                 issues.push(AuditIssue::new(
                     Severity::Info,
                     "unused-interpolation-variable",
@@ -177,16 +229,13 @@ pub fn audit_workflow(report: &ActionsReport) -> Vec<AuditIssue> {
                         .winner
                         .as_ref()
                         .map(|winner| (winner.path.clone(), winner.line));
-                    issues.push(AuditIssue::new(
-                        Severity::Error,
-                        "sensitive-value",
-                        format!(
-                            "{} is set to a concrete value; verify it is not a real credential",
-                            variable.variable
-                        ),
+                    check_sensitive_value(
+                        &mut issues,
+                        &variable.variable,
+                        value,
                         location.as_ref().and_then(|(path, _)| path.clone()),
                         location.and_then(|(_, line)| line),
-                    ));
+                    );
                 }
             }
             for candidate in &variable.candidates {

@@ -5,6 +5,7 @@ services:
       - ./env/web.env
     environment:
       API_TOKEN: sk-live-12345
+      EXAMPLE_TOKEN: changeme
       UNUSED_FLAG:
       BROKEN: ${UNDEFINED_VAR}
       SHADOWED: compose_wins

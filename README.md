@@ -266,9 +266,14 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 **Phase 1 — doctor mode (in progress)**
 - [x] `audit` with sensitive-value, shadowed-dead-code, unused-variable checks
 - [x] `--fail-on` CI gate + dogfooding EnvOrigin's own workflow
-- [ ] `envorigin diff` — compare two sets of sources for environment drift
-- [ ] real-repository validation: run audit against popular open-source
-      Compose projects and fix the analyzer on real findings
+- [x] `envorigin diff` — compare dotenv files for environment drift
+      (sensitive values redacted by default)
+- [x] real-repository validation: audited all 39 examples in
+      docker/awesome-compose. Every file parses and resolves; findings fixed
+      the analyzer: placeholder values (`wordpress`, `changeit`) are now
+      `sensitive-placeholder` warnings instead of errors, and interpolation
+      variables referenced via `$VAR` / `${VAR}` are no longer reported as
+      unused.
 
 **Phase 2 — visualization & IDE**
 - [ ] `envorigin graph` — provenance graph (mermaid/DOT) of service → variable → source

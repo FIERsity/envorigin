@@ -421,8 +421,9 @@ fn audit_command() -> Command {
 fn audit_reports_sensitive_shadowed_and_unused() {
     let output = audit_command().assert().failure();
     output
-        .stdout(predicate::str::contains("2 error(s), 2 warning(s), 1 info"))
+        .stdout(predicate::str::contains("2 error(s), 3 warning(s), 1 info"))
         .stdout(predicate::str::contains("sensitive-value"))
+        .stdout(predicate::str::contains("sensitive-placeholder"))
         .stdout(predicate::str::contains("API_TOKEN"))
         .stdout(predicate::str::contains("DB_PASSWORD"))
         .stdout(predicate::str::contains("shadowed-env-line"))
@@ -437,7 +438,9 @@ fn audit_fail_on_none_succeeds_even_with_errors() {
         .arg("none")
         .assert()
         .success();
-    output.stdout(predicate::str::contains("sensitive-value"));
+    output
+        .stdout(predicate::str::contains("sensitive-value"))
+        .stdout(predicate::str::contains("sensitive-placeholder"));
 }
 
 #[test]
@@ -487,4 +490,56 @@ fn actions_audit_deduplicates_across_scopes() {
         .success()
         .stdout(predicate::str::contains("2 warning(s)"))
         .stdout(predicate::str::contains("shadowed-env-line"));
+}
+
+// --- diff ---
+
+fn diff_fixture(name: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/diff")
+        .join(name)
+        .display()
+        .to_string()
+}
+
+#[test]
+fn diff_reports_drift_and_exclusive_keys() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg(diff_fixture("local.env"))
+        .arg(diff_fixture("ci.env"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("drift (2):"))
+        .stdout(predicate::str::contains("DB_HOST"))
+        .stdout(predicate::str::contains("only in local.env"))
+        .stdout(predicate::str::contains("ONLY_LOCAL"))
+        .stdout(predicate::str::contains("ONLY_CI"));
+}
+
+#[test]
+fn diff_redacts_sensitive_values_by_default() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg(diff_fixture("local.env"))
+        .arg(diff_fixture("ci.env"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("<redacted sha256:"))
+        .stdout(predicate::str::contains("secret-local").not());
+}
+
+#[test]
+fn diff_show_values_reveals_sensitive() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg("--show-values")
+        .arg(diff_fixture("local.env"))
+        .arg(diff_fixture("ci.env"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"secret-local\""));
 }

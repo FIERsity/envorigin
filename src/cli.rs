@@ -22,8 +22,23 @@ pub enum Command {
     Explain(ExplainArgs),
     /// Audit a project for env health issues (sensitive values, dead code).
     Audit(AuditArgs),
+    /// Compare environment drift across dotenv files.
+    Diff(DiffArgs),
     /// Analyze a GitHub Actions workflow's environment variables.
     Actions(ActionsArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct DiffArgs {
+    /// Dotenv files to compare (two or more).
+    #[arg(required = true, num_args = 2..)]
+    pub files: Vec<PathBuf>,
+    /// Reveal values of sensitive-looking variables too.
+    #[arg(long)]
+    pub show_values: bool,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
+    pub format: OutputFormat,
 }
 
 #[derive(Debug, Args)]

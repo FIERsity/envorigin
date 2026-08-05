@@ -6,6 +6,7 @@ use envorigin::actions::{
 };
 use envorigin::audit::{audit_human, audit_project, audit_workflow, AuditIssue};
 use envorigin::cli::{ActionsCommand, Cli, Command, CommonArgs, FailLevel, OutputFormat};
+use envorigin::diff::{diff_files, diff_human, diff_json};
 use envorigin::model::AnalysisError;
 use envorigin::output::{
     explanation_human, explanation_json, project_human, project_json, service_human,
@@ -79,6 +80,13 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 &issues,
                 args.fail_on,
             )
+        }
+        Command::Diff(args) => {
+            let report = diff_files(&args.files)?;
+            Ok(outcome(match args.format {
+                OutputFormat::Human => diff_human(&report, args.show_values),
+                OutputFormat::Json => diff_json(&report, args.show_values),
+            }))
         }
         Command::Actions(args) => match args.command {
             ActionsCommand::Scan(scan) => {
