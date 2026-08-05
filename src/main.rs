@@ -45,6 +45,33 @@ impl Write for IgnoreBrokenPipe {
     }
 }
 
+/// Render issues as GitHub Actions workflow commands so problems appear
+/// annotated on the offending file lines in pull requests.
+fn github_annotations(issues: &[AuditIssue]) -> String {
+    issues
+        .iter()
+        .map(|issue| {
+            let level = match issue.severity {
+                envorigin::model::Severity::Error => "error",
+                envorigin::model::Severity::Warning => "warning",
+                envorigin::model::Severity::Info => "notice",
+            };
+            let location = match (&issue.path, issue.line) {
+                (Some(path), Some(line)) => format!("file={},line={}", path.display(), line),
+                (Some(path), None) => format!("file={}", path.display()),
+                (None, _) => String::new(),
+            };
+            let message = issue.message.replace('%', "%25").replace('\n', "%0A");
+            if location.is_empty() {
+                format!("::{level}::{message}")
+            } else {
+                format!("::{level} {location}::{message}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 struct RunOutcome {
     output: String,
     exit_code: ExitCode,
@@ -97,6 +124,9 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                     .ok_or_else(|| AnalysisError::UnknownService(service_name.clone()))?;
                 Ok(outcome(match args.common.format {
                     OutputFormat::Human => service_human(&report, service, args.common.show_values),
+                    OutputFormat::Github => {
+                        service_human(&report, service, args.common.show_values)
+                    }
                     OutputFormat::Json => {
                         let mut filtered = report.clone();
                         filtered.services = vec![service.clone()];
@@ -106,6 +136,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             } else {
                 Ok(outcome(match args.common.format {
                     OutputFormat::Human => project_human(&report, args.common.show_values),
+                    OutputFormat::Github => project_human(&report, args.common.show_values),
                     OutputFormat::Json => project_json(&report, args.common.show_values),
                 }))
             }
@@ -116,6 +147,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             let explanation = report.explain(service, &args.variable)?;
             Ok(outcome(match args.common.format {
                 OutputFormat::Human => explanation_human(explanation, args.common.show_values),
+                OutputFormat::Github => explanation_human(explanation, args.common.show_values),
                 OutputFormat::Json => explanation_json(explanation, args.common.show_values),
             }))
         }
@@ -134,6 +166,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             let report = diff_files(&args.files)?;
             Ok(outcome(match args.format {
                 OutputFormat::Human => diff_human(&report, args.show_values),
+                OutputFormat::Github => diff_human(&report, args.show_values),
                 OutputFormat::Json => diff_json(&report, args.show_values),
             }))
         }
@@ -146,6 +179,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 let report = analyze_circleci(&scan.file)?;
                 Ok(outcome(match scan.format {
                     OutputFormat::Human => circleci_human(&report, scan.show_values),
+                    OutputFormat::Github => circleci_human(&report, scan.show_values),
                     OutputFormat::Json => circleci_json(&report, scan.show_values),
                 }))
             }
@@ -154,6 +188,9 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 let variable = report.explain(&explain.job, &explain.variable)?;
                 Ok(outcome(match explain.common.format {
                     OutputFormat::Human => {
+                        circleci_variable_human(&report, variable, explain.common.show_values)
+                    }
+                    OutputFormat::Github => {
                         circleci_variable_human(&report, variable, explain.common.show_values)
                     }
                     OutputFormat::Json => {
@@ -179,6 +216,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 let report = analyze_gitlab(&scan.file)?;
                 Ok(outcome(match scan.format {
                     OutputFormat::Human => gitlab_human(&report, scan.show_values),
+                    OutputFormat::Github => gitlab_human(&report, scan.show_values),
                     OutputFormat::Json => gitlab_json(&report, scan.show_values),
                 }))
             }
@@ -187,6 +225,9 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 let variable = report.explain(explain.job.as_deref(), &explain.variable)?;
                 Ok(outcome(match explain.common.format {
                     OutputFormat::Human => {
+                        gitlab_variable_human(&report, variable, explain.common.show_values)
+                    }
+                    OutputFormat::Github => {
                         gitlab_variable_human(&report, variable, explain.common.show_values)
                     }
                     OutputFormat::Json => {
@@ -218,6 +259,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 )?;
                 Ok(outcome(match scan.format {
                     OutputFormat::Human => actions_human(&report, scan.show_values),
+                    OutputFormat::Github => actions_human(&report, scan.show_values),
                     OutputFormat::Json => actions_json(&report, scan.show_values),
                 }))
             }
@@ -234,6 +276,9 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 let variable = report.explain(job, step_index, &explain.variable)?;
                 Ok(outcome(match explain.common.format {
                     OutputFormat::Human => {
+                        actions_variable_human(&report, variable, explain.common.show_values)
+                    }
+                    OutputFormat::Github => {
                         actions_variable_human(&report, variable, explain.common.show_values)
                     }
                     OutputFormat::Json => {
@@ -278,6 +323,7 @@ fn exit_code_for_audit(
         OutputFormat::Json => {
             serde_json::to_string_pretty(issues).expect("AuditIssue is serializable")
         }
+        OutputFormat::Github => github_annotations(issues),
     };
     Ok(RunOutcome {
         output,

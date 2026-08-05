@@ -319,4 +319,6 @@ pub struct CommonArgs {
 pub enum OutputFormat {
     Human,
     Json,
+    /// GitHub Actions workflow commands (::error file=...,line=...::...).
+    Github,
 }

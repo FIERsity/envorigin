@@ -925,3 +925,16 @@ fn gitlab_audit_json_output() {
             "\"code\": \"gitlab-include-external\"",
         ));
 }
+
+#[test]
+fn audit_github_format_emits_workflow_commands() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--format", "github", "--no-docker-check", "--file"])
+        .arg(audit_fixture())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("::error file="))
+        .stdout(predicate::str::contains("line=7::API_TOKEN"))
+        .stdout(predicate::str::contains("::warning::UNDEFINED_VAR"));
+}
