@@ -4,7 +4,9 @@ use clap::Parser;
 use envorigin::actions::{
     actions_human, actions_json, actions_variable_human, actions_variable_json,
 };
-use envorigin::audit::{audit_human, audit_project, audit_workflow, AuditIssue};
+use envorigin::audit::{
+    audit_circleci, audit_gitlab, audit_human, audit_project, audit_workflow, AuditIssue,
+};
 use envorigin::circleci::{
     analyze_circleci, circleci_human, circleci_json, circleci_variable_human,
     circleci_variable_json,
@@ -128,6 +130,15 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                     }
                 }))
             }
+            CircleciCommand::Audit(audit) => {
+                let report = analyze_circleci(&audit.common.file)?;
+                let issues = audit_circleci(&report);
+                exit_code_for_audit(
+                    audit_human(&format!("file: {}", report.file.display()), &issues),
+                    &issues,
+                    audit.fail_on,
+                )
+            }
         },
         Command::Gitlab(args) => match args.command {
             GitlabCommand::Scan(scan) => {
@@ -148,6 +159,15 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                         gitlab_variable_json(&report, variable, explain.common.show_values)
                     }
                 }))
+            }
+            GitlabCommand::Audit(audit) => {
+                let report = analyze_gitlab(&audit.common.file)?;
+                let issues = audit_gitlab(&report);
+                exit_code_for_audit(
+                    audit_human(&format!("file: {}", report.file.display()), &issues),
+                    &issues,
+                    audit.fail_on,
+                )
             }
         },
         // Handled in main() before run() is called.
