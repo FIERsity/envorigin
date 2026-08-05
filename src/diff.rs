@@ -60,8 +60,10 @@ impl DiffReport {
     }
 }
 
+type ParsedFile = Vec<(String, Option<String>)>;
+
 pub fn diff_files(paths: &[PathBuf]) -> Result<DiffReport, AnalysisError> {
-    let mut parsed: Vec<(PathBuf, Vec<(String, Option<String>)>)> = Vec::new();
+    let mut parsed: Vec<(PathBuf, ParsedFile)> = Vec::new();
     for path in paths {
         let file = parse_dotenv_file(path)?;
         parsed.push((
@@ -153,10 +155,8 @@ pub fn diff_json(report: &DiffReport, show_values: bool) -> String {
     if !show_values {
         for entry in &mut report.entries {
             if is_sensitive(&entry.key) {
-                for value in &mut entry.values {
-                    if let Some(value) = value {
-                        *value = fingerprint(value);
-                    }
+                for value in entry.values.iter_mut().flatten() {
+                    *value = fingerprint(value);
                 }
             }
         }
