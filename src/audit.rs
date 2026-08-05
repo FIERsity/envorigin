@@ -80,6 +80,23 @@ fn is_placeholder_value(value: &str) -> bool {
     placeholder_pattern.is_match(value)
 }
 
+/// Values that reference an external secret manager rather than carrying a
+/// concrete secret (Vault, AWS Secrets Manager/SSM, secret templating).
+fn secret_manager_ref(value: &str) -> Option<&'static str> {
+    let lower = value.to_lowercase();
+    if lower.starts_with("vault:") {
+        Some("HashiCorp Vault")
+    } else if lower.starts_with("arn:aws:secretsmanager:") {
+        Some("AWS Secrets Manager")
+    } else if lower.starts_with("arn:aws:ssm:") || lower.starts_with("sm://") {
+        Some("AWS SSM")
+    } else if value.contains("{{ secret") || value.contains("{{secrets.") {
+        Some("secret templating")
+    } else {
+        None
+    }
+}
+
 fn is_expression(value: &str) -> bool {
     value.contains("${{") && value.contains("}}")
 }
@@ -91,7 +108,17 @@ fn check_sensitive_value(
     path: Option<PathBuf>,
     line: Option<usize>,
 ) {
-    if is_placeholder_value(value) {
+    if let Some(provider) = secret_manager_ref(value) {
+        issues.push(AuditIssue::new(
+            Severity::Info,
+            "secret-manager-reference",
+            format!(
+                "{name} references an external secret ({provider}); its value cannot be resolved statically"
+            ),
+            path,
+            line,
+        ));
+    } else if is_placeholder_value(value) {
         issues.push(AuditIssue::new(
             Severity::Warning,
             "sensitive-placeholder",

@@ -262,7 +262,18 @@ pub fn analyze_workflow(
     path: &Path,
     project_directory: Option<&Path>,
 ) -> Result<ActionsReport, AnalysisError> {
-    let content = fs::read_to_string(path)?;
+    analyze_workflow_with_content(path, project_directory, None)
+}
+
+pub fn analyze_workflow_with_content(
+    path: &Path,
+    project_directory: Option<&Path>,
+    content: Option<&str>,
+) -> Result<ActionsReport, AnalysisError> {
+    let content = match content {
+        Some(content) => content.to_string(),
+        None => fs::read_to_string(path)?,
+    };
     let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
         path: path.to_path_buf(),
         source,

@@ -115,7 +115,17 @@ impl VariableBuilder {
 }
 
 pub fn load_compose(path: &Path) -> Result<ComposeFile, AnalysisError> {
-    let content = fs::read_to_string(path)?;
+    load_compose_with_content(path, None)
+}
+
+pub fn load_compose_with_content(
+    path: &Path,
+    content: Option<&str>,
+) -> Result<ComposeFile, AnalysisError> {
+    let content = match content {
+        Some(content) => content.to_string(),
+        None => fs::read_to_string(path)?,
+    };
     let raw: RawComposeFile =
         serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
             path: path.to_path_buf(),

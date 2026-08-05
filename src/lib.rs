@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use std::env;
 use std::path::{Path, PathBuf};
 
-use compose::{analyze_service, load_compose};
+use compose::{analyze_service, load_compose_with_content};
 use docker::DockerVerification;
 use dotenv::parse_dotenv_file;
 use interpolation::InterpolationContext;
@@ -46,8 +46,17 @@ impl Default for AnalyzeOptions {
 }
 
 pub fn analyze(options: &AnalyzeOptions) -> Result<ProjectReport, AnalysisError> {
+    analyze_with_content(options, None)
+}
+
+/// Analyze with an in-memory buffer override (LSP unsaved edits). Paths
+/// still resolve against the real file location.
+pub fn analyze_with_content(
+    options: &AnalyzeOptions,
+    content: Option<&str>,
+) -> Result<ProjectReport, AnalysisError> {
     let compose_file = absolute(&options.compose_file)?;
-    let compose = load_compose(&compose_file)?;
+    let compose = load_compose_with_content(&compose_file, content)?;
     let project_directory = match &options.project_directory {
         Some(path) => absolute(path)?,
         None => compose_file

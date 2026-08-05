@@ -276,7 +276,17 @@ fn parse_parameters(value: Option<&Value>, content: &str, start: usize) -> Vec<P
 }
 
 pub fn analyze_circleci(path: &Path) -> Result<CircleciReport, AnalysisError> {
-    let content = fs::read_to_string(path)?;
+    analyze_circleci_with_content(path, None)
+}
+
+pub fn analyze_circleci_with_content(
+    path: &Path,
+    content: Option<&str>,
+) -> Result<CircleciReport, AnalysisError> {
+    let content = match content {
+        Some(content) => content.to_string(),
+        None => fs::read_to_string(path)?,
+    };
     let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
         path: path.to_path_buf(),
         source,

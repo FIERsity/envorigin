@@ -2,8 +2,8 @@
 //! configuration backends.
 //!
 //! The server routes each opened document to the matching analyzer by file
-//! name. Analysis reads the file from disk (unsaved buffer edits are not
-//! analyzed yet — a documented v1 limitation). Diagnostics mirror the
+//! name. Unsaved buffer edits are analyzed in memory via the with_content
+//! analyzer variants. Diagnostics mirror the
 //! `audit` findings per variable: undefined interpolation references,
 //! shadowed dead-code lines, sensitive values, and analyzer warnings.
 
@@ -19,7 +19,7 @@ use crate::actions;
 use crate::circleci;
 use crate::gitlab;
 use crate::model::{Diagnostic as EnvDiagnostic, Severity as EnvSeverity};
-use crate::{analyze, AnalyzeOptions};
+use crate::AnalyzeOptions;
 
 #[derive(Debug, Clone)]
 struct Symbol {
@@ -81,7 +81,10 @@ fn from_env_diag(diagnostic: &EnvDiagnostic) -> LspDiag {
 }
 
 /// Route a file to its analyzer and extract symbols + diagnostics.
-fn analyze_file(path: &Path) -> std::result::Result<LspAnalysis, Box<dyn std::error::Error>> {
+fn analyze_file(
+    path: &Path,
+    content: Option<&str>,
+) -> std::result::Result<LspAnalysis, Box<dyn std::error::Error>> {
     let file_name = path
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
@@ -116,11 +119,14 @@ fn analyze_file(path: &Path) -> std::result::Result<LspAnalysis, Box<dyn std::er
     };
 
     if is_compose {
-        let report = analyze(&AnalyzeOptions {
-            compose_file: path.to_path_buf(),
-            docker_check: false,
-            ..AnalyzeOptions::default()
-        })?;
+        let report = crate::analyze_with_content(
+            &AnalyzeOptions {
+                compose_file: path.to_path_buf(),
+                docker_check: false,
+                ..AnalyzeOptions::default()
+            },
+            content,
+        )?;
         let mut symbols = Vec::new();
         let mut diagnostics = Vec::new();
         for diagnostic in &report.diagnostics {
@@ -164,7 +170,7 @@ fn analyze_file(path: &Path) -> std::result::Result<LspAnalysis, Box<dyn std::er
         }
         collect(symbols, diagnostics);
     } else if workflow_dir && file_name.ends_with(".yml") {
-        let report = actions::analyze_workflow(path, None)?;
+        let report = actions::analyze_workflow_with_content(path, None, content)?;
         let mut symbols = Vec::new();
         let mut diagnostics = Vec::new();
         for diagnostic in &report.diagnostics {
@@ -212,7 +218,7 @@ fn analyze_file(path: &Path) -> std::result::Result<LspAnalysis, Box<dyn std::er
         }
         collect(symbols, diagnostics);
     } else if file_name == ".gitlab-ci.yml" {
-        let report = gitlab::analyze_gitlab(path)?;
+        let report = gitlab::analyze_gitlab_with_content(path, content)?;
         let mut symbols = Vec::new();
         let mut diagnostics = Vec::new();
         for diagnostic in &report.diagnostics {
@@ -267,7 +273,7 @@ fn analyze_file(path: &Path) -> std::result::Result<LspAnalysis, Box<dyn std::er
         }
         collect(symbols, diagnostics);
     } else if file_name == "config.yml" && parent.ends_with(".circleci") {
-        let report = circleci::analyze_circleci(path)?;
+        let report = circleci::analyze_circleci_with_content(path, content)?;
         let mut symbols = Vec::new();
         let mut diagnostics = Vec::new();
         for diagnostic in &report.diagnostics {
@@ -351,15 +357,24 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.analyze_and_publish(&params.text_document.uri).await;
+        let content = params.text_document.text.clone();
+        self.analyze_and_publish(&params.text_document.uri, Some(&content))
+            .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        self.analyze_and_publish(&params.text_document.uri).await;
+        // FULL sync: the last change carries the entire buffer.
+        let content = params
+            .content_changes
+            .last()
+            .map(|change| change.text.clone());
+        self.analyze_and_publish(&params.text_document.uri, content.as_deref())
+            .await;
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        self.analyze_and_publish(&params.text_document.uri).await;
+        self.analyze_and_publish(&params.text_document.uri, None)
+            .await;
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
@@ -435,11 +450,14 @@ impl LanguageServer for Backend {
 }
 
 impl Backend {
-    async fn analyze_and_publish(&self, uri: &Url) {
+    async fn analyze_and_publish(&self, uri: &Url, buffer: Option<&str>) {
         let Some(path) = uri.to_file_path().ok() else {
             return;
         };
-        let analysis = analyze_file(&path).unwrap_or_default();
+        // Unsaved buffer edits are analyzed in memory; relative references
+        // (env_file, includes, env files) still resolve against the real
+        // file location.
+        let analysis = analyze_file(&path, buffer).unwrap_or_default();
         {
             let mut cache = self.cache.lock().unwrap();
             cache.insert(uri.clone(), analysis.clone());

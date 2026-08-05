@@ -421,14 +421,15 @@ fn audit_command() -> Command {
 fn audit_reports_sensitive_shadowed_and_unused() {
     let output = audit_command().assert().failure();
     output
-        .stdout(predicate::str::contains("2 error(s), 3 warning(s), 1 info"))
+        .stdout(predicate::str::contains("2 error(s), 3 warning(s), 2 info"))
         .stdout(predicate::str::contains("sensitive-value"))
         .stdout(predicate::str::contains("sensitive-placeholder"))
         .stdout(predicate::str::contains("API_TOKEN"))
         .stdout(predicate::str::contains("DB_PASSWORD"))
         .stdout(predicate::str::contains("shadowed-env-line"))
         .stdout(predicate::str::contains("unused-interpolation-variable"))
-        .stdout(predicate::str::contains("ORPHAN"));
+        .stdout(predicate::str::contains("ORPHAN"))
+        .stdout(predicate::str::contains("secret-manager-reference"));
 }
 
 #[test]
