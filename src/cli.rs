@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -34,6 +35,8 @@ pub enum Command {
     Actions(ActionsArgs),
     /// Start the LSP server (for editor integration).
     Lsp,
+    /// Generate a shell completion script.
+    Completions(CompletionsArgs),
 }
 
 #[derive(Debug, Args)]
@@ -173,6 +176,12 @@ pub struct AuditArgs {
     /// Team convention rules file (default: ./envorigin.toml if present).
     #[arg(long)]
     pub config: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct CompletionsArgs {
+    /// Shell to generate completions for.
+    pub shell: Shell,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
