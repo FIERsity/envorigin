@@ -232,3 +232,46 @@ fn lsp_unsaved_changes_reflect_in_diagnostics() {
     );
     client.shutdown().expect("graceful shutdown");
 }
+
+#[test]
+fn lsp_routes_all_four_backends() {
+    let cases = [
+        (
+            "gitlab",
+            "tests/fixtures/gitlab/.gitlab-ci.yml",
+            "gitlab-include-external",
+        ),
+        (
+            "circleci",
+            "tests/fixtures/circleci/.circleci/config.yml",
+            "circleci-context-external",
+        ),
+        (
+            "actions",
+            "tests/fixtures/actions/.github/workflows/workflow.yaml",
+            "github-env-runtime",
+        ),
+    ];
+    for (label, relative, expected_code) in cases {
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join(relative);
+        let uri = format!("file://{}", fixture.display());
+        let content = std::fs::read_to_string(&fixture).unwrap();
+
+        let mut client = LspClient::start();
+        client.request(1, "initialize", json!({"capabilities": {}}));
+        client.notify("initialized", json!({}));
+        client.notify(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {"uri": uri, "languageId": "yaml", "version": 1, "text": content}
+            }),
+        );
+        let published = client.receive_until("textDocument/publishDiagnostics");
+        let diagnostics = published["params"]["diagnostics"].as_array().unwrap();
+        assert!(
+            diagnostics.iter().any(|diag| diag["code"] == expected_code),
+            "{label}: expected {expected_code} in {diagnostics:?}"
+        );
+        client.shutdown().expect("graceful shutdown");
+    }
+}
