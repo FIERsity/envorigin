@@ -2,11 +2,14 @@
 //!
 //! Audit checks that conventions, not just correctness: required variables
 //! that must exist in the final environment, a naming prefix every
-//! user-defined variable must follow, and variables that are forbidden
-//! outright. Rules are additive to the built-in checks.
+//! user-defined variable must follow, variables that are forbidden
+//! outright, and per-variable value format patterns. Rules are additive to
+//! the built-in checks.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use regex::Regex;
 use serde::Deserialize;
 
 use crate::audit::AuditIssue;
@@ -21,6 +24,8 @@ pub struct Rules {
     pub prefix: Option<String>,
     /// Variables that must not be defined at all.
     pub forbidden: Vec<String>,
+    /// Per-variable value format validation (regex, matched with `is_match`).
+    pub patterns: BTreeMap<String, String>,
 }
 
 impl Rules {
@@ -36,11 +41,11 @@ impl Rules {
     }
 }
 
-/// Apply rules to a set of resolved variable names (user-defined only).
-pub fn check_rules(names: &[String], rules: &Rules) -> Vec<AuditIssue> {
+/// Apply rules to a set of resolved variables `(name, resolved value)`.
+pub fn check_rules(variables: &[(String, Option<String>)], rules: &Rules) -> Vec<AuditIssue> {
     let mut issues = Vec::new();
     for required in &rules.required {
-        if !names.iter().any(|name| name == required) {
+        if !variables.iter().any(|variable| variable.0 == *required) {
             issues.push(AuditIssue::new(
                 Severity::Error,
                 "required-variable-missing",
@@ -53,13 +58,14 @@ pub fn check_rules(names: &[String], rules: &Rules) -> Vec<AuditIssue> {
         }
     }
     if let Some(prefix) = &rules.prefix {
-        for name in names {
-            if !name.starts_with(prefix.as_str()) {
+        for variable in variables {
+            if !variable.0.as_str().starts_with(prefix.as_str()) {
                 issues.push(AuditIssue::new(
                     Severity::Warning,
                     "naming-prefix",
                     format!(
-                        "{name} does not follow the required '{prefix}' prefix from envorigin.toml"
+                        "{} does not follow the required '{prefix}' prefix from envorigin.toml",
+                        variable.0.as_str()
                     ),
                     None,
                     None,
@@ -68,7 +74,10 @@ pub fn check_rules(names: &[String], rules: &Rules) -> Vec<AuditIssue> {
         }
     }
     for forbidden in &rules.forbidden {
-        if names.iter().any(|name| name == forbidden) {
+        if variables
+            .iter()
+            .any(|variable| variable.0.as_str() == forbidden)
+        {
             issues.push(AuditIssue::new(
                 Severity::Error,
                 "forbidden-variable",
@@ -76,6 +85,33 @@ pub fn check_rules(names: &[String], rules: &Rules) -> Vec<AuditIssue> {
                 None,
                 None,
             ));
+        }
+    }
+    for (variable_name, pattern) in &rules.patterns {
+        let Some((_, Some(value))) = variables
+            .iter()
+            .find(|variable| variable.0.as_str() == variable_name)
+        else {
+            continue;
+        };
+        match Regex::new(pattern) {
+            Ok(regex) if !regex.is_match(value) => issues.push(AuditIssue::new(
+                Severity::Error,
+                "pattern-mismatch",
+                format!(
+                    "{variable_name} does not match the required pattern '{pattern}' from envorigin.toml"
+                ),
+                None,
+                None,
+            )),
+            Ok(_) => {}
+            Err(error) => issues.push(AuditIssue::new(
+                Severity::Error,
+                "invalid-pattern",
+                format!("invalid pattern for {variable_name} in envorigin.toml: {error}"),
+                None,
+                None,
+            )),
         }
     }
     issues
@@ -96,8 +132,13 @@ mod tests {
             required: vec!["MISSING".to_string()],
             prefix: Some("APP_".to_string()),
             forbidden: vec!["BAD".to_string()],
+            ..Rules::default()
         };
-        let issues = check_rules(&["APP_OK".to_string(), "BAD".to_string()], &rules);
+        let variables = vec![
+            ("APP_OK".to_string(), Some("v".to_string())),
+            ("BAD".to_string(), Some("v".to_string())),
+        ];
+        let issues = check_rules(&variables, &rules);
         assert_eq!(issues.len(), 3);
         let codes: Vec<&str> = issues.iter().map(|issue| issue.code.as_str()).collect();
         assert!(codes.contains(&"required-variable-missing"));
@@ -106,12 +147,34 @@ mod tests {
     }
 
     #[test]
-    fn prefix_violation_is_reported() {
+    fn pattern_mismatch_is_reported() {
         let rules = Rules {
-            prefix: Some("APP_".to_string()),
+            patterns: BTreeMap::from([(
+                "DATABASE_URL".to_string(),
+                "^postgres(ql)?://".to_string(),
+            )]),
             ..Rules::default()
         };
-        let issues = check_rules(&["BAD_NAME".to_string()], &rules);
-        assert_eq!(issues[0].code, "naming-prefix");
+        let variables = vec![("DATABASE_URL".to_string(), Some("mysql://db".to_string()))];
+        let issues = check_rules(&variables, &rules);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "pattern-mismatch");
+
+        let ok = vec![(
+            "DATABASE_URL".to_string(),
+            Some("postgres://db".to_string()),
+        )];
+        assert!(check_rules(&ok, &rules).is_empty());
+    }
+
+    #[test]
+    fn invalid_pattern_is_reported_not_panicked() {
+        let rules = Rules {
+            patterns: BTreeMap::from([("X".to_string(), "([".to_string())]),
+            ..Rules::default()
+        };
+        let variables = vec![("X".to_string(), Some("value".to_string()))];
+        let issues = check_rules(&variables, &rules);
+        assert_eq!(issues[0].code, "invalid-pattern");
     }
 }

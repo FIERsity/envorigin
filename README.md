@@ -229,6 +229,9 @@ Turn team conventions into enforced audit checks. Any audit command
 required = ["DATABASE_URL", "LOG_LEVEL"]   # must resolve somewhere
 prefix = "APP_"                            # every user variable must follow
 forbidden = ["CI"]                         # must not be defined
+
+[patterns]
+DATABASE_URL = "^postgres(ql)?://"         # value format validation
 ```
 
 | Check | Severity | Trigger |
@@ -236,6 +239,7 @@ forbidden = ["CI"]                         # must not be defined
 | `required-variable-missing` | error | a required name resolves nowhere |
 | `naming-prefix` | warning | a user-defined variable violates the prefix |
 | `forbidden-variable` | error | a forbidden name is defined |
+| `pattern-mismatch` | error | a variable's value fails its `[patterns]` regex |
 
 The same checks apply to all four backends; `--fail-on` gates CI exactly as
 for the built-in checks.
@@ -377,7 +381,7 @@ Semantics notes:
 cargo test
 ```
 
-68 tests: unit tests for the dotenv parser, the interpolator, Compose
+70 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
@@ -414,6 +418,11 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [ ] rules engine: `envorigin.toml` for team conventions (required vars,
       name prefixes, value validation)
 - [ ] integration notes for secret managers (Vault, AWS SSM)
+
+## Release
+
+`./scripts/release.sh <version>` tags, creates the GitHub release, publishes to
+crates.io, and updates the Homebrew formula in one run.
 
 ## License
 

@@ -829,3 +829,26 @@ fn circleci_graph_renders_jobs_and_sources() {
         .stdout(predicate::str::contains("-->|\"winner\"|"))
         .stdout(predicate::str::contains("-.->|\"shadowed\"|"));
 }
+
+#[test]
+fn audit_pattern_rules_mismatch() {
+    // precedence has no DATABASE_URL, so the pattern applies only when the
+    // variable exists; build a quick temp compose with a violating value.
+    let dir = tempfile::tempdir().unwrap();
+    let compose = dir.path().join("compose.yaml");
+    std::fs::write(
+        &compose,
+        "services:\n  web:\n    image: nginx\n    environment:\n      DATABASE_URL: mysql://db\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--config"])
+        .arg(rules_fixture())
+        .arg("--file")
+        .arg(compose.display().to_string())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("pattern-mismatch"))
+        .stdout(predicate::str::contains("^postgres(ql)?://"));
+}
