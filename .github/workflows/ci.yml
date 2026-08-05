@@ -26,3 +26,5 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: Test
         run: cargo test --all-targets
+      - name: Audit own workflow (dogfood)
+        run: cargo run --quiet -- actions audit --file .github/workflows/ci.yml --fail-on warning

@@ -77,6 +77,7 @@ Usage: envorigin <COMMAND>
 Commands:
   scan     List the variables configured for each Compose service
   explain  Explain the winning and shadowed sources for one variable
+  audit    Audit a project for env health issues (sensitive values, dead code)
   actions  Analyze a GitHub Actions workflow's environment variables
   help     Print this message or the help of the given subcommand(s)
 
@@ -179,6 +180,41 @@ Flags: `-f/--file` (default `.github/workflows/ci.yml`), `-j/--job`,
 `-s/--step` (name, id, or index), `--project-directory`,
 `--show-values`, `--format json`.
 
+### `audit` / `actions audit`
+
+A checkable health report for a whole project. It aggregates every
+diagnostic the analyzer produces, then adds checks a diagnostic model cannot
+express:
+
+| Check | Severity | What it reports |
+| --- | --- | --- |
+| `sensitive-value` | error | a variable whose name matches `TOKEN`/`SECRET`/`PASSWORD`/`KEY`/… is set to a concrete value |
+| `undefined-interpolation-variable` | warning | `$VAR` / `${VAR}` references a variable that resolves to empty |
+| `shadowed-env-line` | warning | a definition loses to a higher-precedence layer with a different value — dead code |
+| `unused-interpolation-variable` | info | an interpolation-file variable no service consumes |
+| `dotenv-trailing-content`, docker checks, … | as diagnosed | existing analyzer diagnostics |
+
+```text
+$ envorigin audit
+
+EnvOrigin 0.3.0 — audit
+compose: /app/compose.yaml
+
+2 error(s), 2 warning(s), 1 info
+
+error [sensitive-value]: API_TOKEN is set to a concrete value; verify it is not a real credential (/app/compose.yaml:7)
+warning [shadowed-env-line]: SHADOWED is shadowed by a higher-precedence layer and can be removed (/app/env/web.env:2)
+info [unused-interpolation-variable]: ORPHAN in the interpolation file is not consumed by any service (/app/.env:2)
+```
+
+`--fail-on <level>` (default `error`) turns the audit into a CI gate:
+`--fail-on warning` exits 1 when any warning or error is found. Values are
+never printed — the audit can run on repositories holding real credentials.
+
+EnvOrigin audits its own workflow on every push: the `Audit own workflow
+(dogfood)` step in `.github/workflows/ci.yml` runs
+`envorigin actions audit --fail-on warning` on the repository's CI file.
+
 ## Design
 
 - **`src/compose.rs`** — Compose model (env_file specs, environment forms) and
@@ -215,21 +251,35 @@ Semantics notes:
 cargo test
 ```
 
-35 tests: unit tests for the dotenv parser, the interpolator, Compose
-normalization, the Docker canonical extraction, and the Actions layer
-resolution; plus end-to-end CLI tests against
-`tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs}`
+40 tests: unit tests for the dotenv parser, the interpolator, Compose
+normalization, the Docker canonical extraction, the Actions layer
+resolution, and the audit checks; plus end-to-end CLI tests against
+`tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
 that assert redaction, derivation tracking, the full shadowing chain,
-`COMPOSE_ENV_FILES` expansion, `format: raw` semantics, and
-expression-reference resolution. CI runs `fmt` + `clippy -D warnings` +
-tests on Ubuntu.
+`COMPOSE_ENV_FILES` expansion, `format: raw` semantics,
+expression-reference resolution, and audit exit codes. CI runs `fmt` +
+`clippy -D warnings` + tests on Ubuntu, and audits its own workflow
+(dogfood).
 
 ## Roadmap
 
-- [ ] standalone `.env` tooling (`envorigin dotenv ...`)
-- [ ] shell completion and `--debug` tracing of the resolution decision
-- [ ] `.env`-style diagnostics for job/step env files in `actions`
-- [ ] `COMPOSE_FILE` following
+**Phase 1 — doctor mode (in progress)**
+- [x] `audit` with sensitive-value, shadowed-dead-code, unused-variable checks
+- [x] `--fail-on` CI gate + dogfooding EnvOrigin's own workflow
+- [ ] `envorigin diff` — compare two sets of sources for environment drift
+- [ ] real-repository validation: run audit against popular open-source
+      Compose projects and fix the analyzer on real findings
+
+**Phase 2 — visualization & IDE**
+- [ ] `envorigin graph` — provenance graph (mermaid/DOT) of service → variable → source
+- [ ] LSP server + VS Code extension (hover source, jump-to-definition, live diagnostics)
+- [ ] GitLab CI / CircleCI env syntax support
+
+**Phase 3 — ecosystem**
+- [ ] crates.io release (`cargo install envorigin`) + Homebrew tap
+- [ ] rules engine: `envorigin.toml` for team conventions (required vars,
+      name prefixes, value validation)
+- [ ] integration notes for secret managers (Vault, AWS SSM)
 
 ## License
 

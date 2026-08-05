@@ -397,3 +397,94 @@ fn actions_explain_resolves_declared_inputs() {
         .stdout(predicate::str::contains("workflow inputs:"))
         .stdout(predicate::str::contains("dry_run"));
 }
+
+// --- audit ---
+
+fn audit_fixture() -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/audit/compose.yaml")
+        .display()
+        .to_string()
+}
+
+fn audit_command() -> Command {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("audit")
+        .arg("--no-docker-check")
+        .arg("--file")
+        .arg(audit_fixture());
+    command
+}
+
+#[test]
+fn audit_reports_sensitive_shadowed_and_unused() {
+    let output = audit_command().assert().failure();
+    output
+        .stdout(predicate::str::contains("2 error(s), 2 warning(s), 1 info"))
+        .stdout(predicate::str::contains("sensitive-value"))
+        .stdout(predicate::str::contains("API_TOKEN"))
+        .stdout(predicate::str::contains("DB_PASSWORD"))
+        .stdout(predicate::str::contains("shadowed-env-line"))
+        .stdout(predicate::str::contains("unused-interpolation-variable"))
+        .stdout(predicate::str::contains("ORPHAN"));
+}
+
+#[test]
+fn audit_fail_on_none_succeeds_even_with_errors() {
+    let output = audit_command()
+        .arg("--fail-on")
+        .arg("none")
+        .assert()
+        .success();
+    output.stdout(predicate::str::contains("sensitive-value"));
+}
+
+#[test]
+fn audit_fail_on_warning_fails_on_warnings() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args([
+            "audit",
+            "--fail-on",
+            "warning",
+            "--no-docker-check",
+            "--file",
+        ])
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/basic/compose.yaml")
+                .display()
+                .to_string(),
+        )
+        .assert()
+        .success();
+}
+
+#[test]
+fn audit_clean_compose_exits_zero() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--file"])
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/basic/compose.yaml")
+                .display()
+                .to_string(),
+        )
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 error(s), 0 warning(s), 0 info"));
+}
+
+#[test]
+fn actions_audit_deduplicates_across_scopes() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["actions", "audit", "--file"])
+        .arg(workflow_path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 warning(s)"))
+        .stdout(predicate::str::contains("shadowed-env-line"));
+}

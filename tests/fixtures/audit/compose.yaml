@@ -1,0 +1,10 @@
+services:
+  web:
+    image: nginx
+    env_file:
+      - ./env/web.env
+    environment:
+      API_TOKEN: sk-live-12345
+      UNUSED_FLAG:
+      BROKEN: ${UNDEFINED_VAR}
+      SHADOWED: compose_wins

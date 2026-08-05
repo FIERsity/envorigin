@@ -4,18 +4,24 @@ use clap::Parser;
 use envorigin::actions::{
     actions_human, actions_json, actions_variable_human, actions_variable_json,
 };
-use envorigin::cli::{ActionsCommand, Cli, Command, CommonArgs, OutputFormat};
+use envorigin::audit::{audit_human, audit_project, audit_workflow, AuditIssue};
+use envorigin::cli::{ActionsCommand, Cli, Command, CommonArgs, FailLevel, OutputFormat};
 use envorigin::model::AnalysisError;
 use envorigin::output::{
     explanation_human, explanation_json, project_human, project_json, service_human,
 };
 use envorigin::{analyze, AnalyzeOptions};
 
+struct RunOutcome {
+    output: String,
+    exit_code: ExitCode,
+}
+
 fn main() -> ExitCode {
     match run(Cli::parse()) {
-        Ok(output) => {
-            println!("{output}");
-            ExitCode::SUCCESS
+        Ok(outcome) => {
+            println!("{}", outcome.output);
+            outcome.exit_code
         }
         Err(error) => {
             eprintln!("error: {error}");
@@ -24,7 +30,11 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(cli: Cli) -> Result<String, AnalysisError> {
+fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
+    let outcome = |output: String| RunOutcome {
+        output,
+        exit_code: ExitCode::SUCCESS,
+    };
     match cli.command {
         Command::Scan(args) => {
             let report = analyze(&options(&args.common))?;
@@ -34,29 +44,41 @@ fn run(cli: Cli) -> Result<String, AnalysisError> {
                     .iter()
                     .find(|service| service.name == service_name)
                     .ok_or_else(|| AnalysisError::UnknownService(service_name.clone()))?;
-                Ok(match args.common.format {
+                Ok(outcome(match args.common.format {
                     OutputFormat::Human => service_human(&report, service, args.common.show_values),
                     OutputFormat::Json => {
                         let mut filtered = report.clone();
                         filtered.services = vec![service.clone()];
                         project_json(&filtered, args.common.show_values)
                     }
-                })
+                }))
             } else {
-                Ok(match args.common.format {
+                Ok(outcome(match args.common.format {
                     OutputFormat::Human => project_human(&report, args.common.show_values),
                     OutputFormat::Json => project_json(&report, args.common.show_values),
-                })
+                }))
             }
         }
         Command::Explain(args) => {
             let report = analyze(&options(&args.common))?;
             let service = select_service(&report, args.service.as_deref())?;
             let explanation = report.explain(service, &args.variable)?;
-            Ok(match args.common.format {
+            Ok(outcome(match args.common.format {
                 OutputFormat::Human => explanation_human(explanation, args.common.show_values),
                 OutputFormat::Json => explanation_json(explanation, args.common.show_values),
-            })
+            }))
+        }
+        Command::Audit(args) => {
+            let report = analyze(&options(&args.common))?;
+            let issues = audit_project(&report);
+            exit_code_for_audit(
+                audit_human(
+                    &format!("compose: {}", report.compose_file.display()),
+                    &issues,
+                ),
+                &issues,
+                args.fail_on,
+            )
         }
         Command::Actions(args) => match args.command {
             ActionsCommand::Scan(scan) => {
@@ -64,10 +86,10 @@ fn run(cli: Cli) -> Result<String, AnalysisError> {
                     &scan.workflow_file,
                     scan.project_directory.as_deref(),
                 )?;
-                Ok(match scan.format {
+                Ok(outcome(match scan.format {
                     OutputFormat::Human => actions_human(&report, scan.show_values),
                     OutputFormat::Json => actions_json(&report, scan.show_values),
-                })
+                }))
             }
             ActionsCommand::Explain(explain) => {
                 let report = envorigin::actions::analyze_workflow(
@@ -80,17 +102,48 @@ fn run(cli: Cli) -> Result<String, AnalysisError> {
                     Some(spec) => Some(select_step(&report, job, spec)?),
                 };
                 let variable = report.explain(job, step_index, &explain.variable)?;
-                Ok(match explain.common.format {
+                Ok(outcome(match explain.common.format {
                     OutputFormat::Human => {
                         actions_variable_human(&report, variable, explain.common.show_values)
                     }
                     OutputFormat::Json => {
                         actions_variable_json(&report, variable, explain.common.show_values)
                     }
-                })
+                }))
+            }
+            ActionsCommand::Audit(audit) => {
+                let report = envorigin::actions::analyze_workflow(
+                    &audit.common.workflow_file,
+                    audit.common.project_directory.as_deref(),
+                )?;
+                let issues = audit_workflow(&report);
+                exit_code_for_audit(
+                    audit_human(
+                        &format!("workflow: {}", report.workflow_file.display()),
+                        &issues,
+                    ),
+                    &issues,
+                    audit.fail_on,
+                )
             }
         },
     }
+}
+
+fn exit_code_for_audit(
+    output: String,
+    issues: &[AuditIssue],
+    fail_on: FailLevel,
+) -> Result<RunOutcome, AnalysisError> {
+    let failed = issues.iter().any(|issue| fail_on.triggers(issue.severity));
+    Ok(RunOutcome {
+        output,
+        exit_code: if failed {
+            ExitCode::from(1)
+        } else {
+            ExitCode::SUCCESS
+        },
+    })
 }
 
 fn select_job<'a>(

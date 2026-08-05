@@ -20,8 +20,45 @@ pub enum Command {
     Scan(ScanArgs),
     /// Explain the winning and shadowed sources for one variable.
     Explain(ExplainArgs),
+    /// Audit a project for env health issues (sensitive values, dead code).
+    Audit(AuditArgs),
     /// Analyze a GitHub Actions workflow's environment variables.
     Actions(ActionsArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct AuditArgs {
+    #[command(flatten)]
+    pub common: CommonArgs,
+    /// Fail (exit 1) when issues of this severity or higher are found.
+    #[arg(long, value_enum, default_value_t = FailLevel::Error)]
+    pub fail_on: FailLevel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum FailLevel {
+    /// Never fail.
+    None,
+    /// Fail on info issues or higher.
+    Info,
+    /// Fail on warning issues or higher.
+    Warning,
+    /// Fail on error issues only.
+    Error,
+}
+
+impl FailLevel {
+    pub fn triggers(self, severity: crate::model::Severity) -> bool {
+        use crate::model::Severity;
+        use FailLevel::*;
+        match (self, severity) {
+            (None, _) => false,
+            (Error, Severity::Error) => true,
+            (Warning, Severity::Warning | Severity::Error) => true,
+            (Info, _) => true,
+            (_, _) => false,
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -36,6 +73,17 @@ pub enum ActionsCommand {
     Scan(ActionsScanArgs),
     /// Explain the winning and shadowed sources for one variable.
     Explain(ActionsExplainArgs),
+    /// Audit a workflow for env health issues.
+    Audit(ActionsAuditArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ActionsAuditArgs {
+    #[command(flatten)]
+    pub common: ActionsScanArgs,
+    /// Fail (exit 1) when issues of this severity or higher are found.
+    #[arg(long, value_enum, default_value_t = FailLevel::Error)]
+    pub fail_on: FailLevel,
 }
 
 #[derive(Debug, Args)]
