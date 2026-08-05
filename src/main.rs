@@ -1,3 +1,4 @@
+use std::io::{ErrorKind, Write};
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser};
@@ -27,6 +28,23 @@ use envorigin::output::{
 use envorigin::rules::{default_config_path, Rules};
 use envorigin::{analyze, AnalyzeOptions};
 
+/// A writer that swallows EPIPE: completion scripts piped into `head` or
+/// `grep` must not panic when the consumer closes the pipe early.
+struct IgnoreBrokenPipe(std::io::Stdout);
+
+impl Write for IgnoreBrokenPipe {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self.0.write(buf) {
+            Err(error) if error.kind() == ErrorKind::BrokenPipe => Ok(buf.len()),
+            result => result,
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
 struct RunOutcome {
     output: String,
     exit_code: ExitCode,
@@ -45,7 +63,7 @@ fn main() -> ExitCode {
                 args.shell,
                 &mut command,
                 "envorigin",
-                &mut std::io::stdout(),
+                &mut IgnoreBrokenPipe(std::io::stdout()),
             );
             return ExitCode::SUCCESS;
         }
