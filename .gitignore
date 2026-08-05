@@ -4,3 +4,5 @@
 # Ignore only the project-root .env (secrets); fixture .env files are tracked.
 /.env
 
+vscode/node_modules/
+vscode/out/

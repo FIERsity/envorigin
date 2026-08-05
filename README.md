@@ -64,7 +64,7 @@ cargo install --git https://github.com/FIERsity/envorigin
 cargo build --release
 ```
 
-Requires Rust 1.85+.
+Requires Rust 1.86+.
 
 ## Usage
 
@@ -83,6 +83,7 @@ Commands:
   gitlab   Analyze a GitLab CI configuration's variables
   circleci Analyze a CircleCI configuration's environment variables
   actions  Analyze a GitHub Actions workflow's environment variables
+  lsp      Start the LSP server (for editor integration)
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -296,6 +297,24 @@ references:
   - parameters.target → job parameter (.circleci/config.yml:15)
 ```
 
+
+### `lsp` — editor integration
+
+`envorigin lsp` speaks the Language Server Protocol over stdio and powers the
+[VS Code extension](vscode/):
+
+- **Hover** a variable definition line to see its winning source and value
+  (redacted by default).
+- **Go to definition** jumps from a variable to the file and line that won.
+- **Live diagnostics** mirror the audit findings — undefined interpolation
+  references, shadowed dead-code lines, sensitive values — as you edit.
+
+Documents are routed to the matching backend by file name (`compose.y*ml`,
+`.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`). v1
+reads files from disk, so unsaved buffer edits are not analyzed yet. The
+extension lives in [`vscode/`](vscode/) (TS client, `npm run compile` to
+build, `binaryPath` setting to point at the CLI).
+
 ## Design
 
 - **`src/compose.rs`** — Compose model (env_file specs, environment forms) and
@@ -332,7 +351,7 @@ Semantics notes:
 cargo test
 ```
 
-55 tests: unit tests for the dotenv parser, the interpolator, Compose
+57 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
@@ -360,7 +379,7 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [x] `envorigin graph` / `envorigin actions graph` — mermaid provenance
       graph (solid = winner, dashed = shadowed, dashed-derived = dependency);
       output validated against the mermaid renderer
-- [ ] LSP server + VS Code extension (hover source, jump-to-definition, live diagnostics)
+- [x] LSP server + VS Code extension (hover, go-to-definition, live diagnostics)
 - [x] GitLab CI variables support (include < global < job; `$VAR`
       reference tracking; predefined variables)
 - [x] CircleCI env support (executor < job, parameters, contexts external)

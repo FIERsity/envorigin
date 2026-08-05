@@ -32,6 +32,8 @@ pub enum Command {
     Circleci(CircleciArgs),
     /// Analyze a GitHub Actions workflow's environment variables.
     Actions(ActionsArgs),
+    /// Start the LSP server (for editor integration).
+    Lsp,
 }
 
 #[derive(Debug, Args)]

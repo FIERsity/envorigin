@@ -9,6 +9,7 @@ pub mod dotenv;
 pub mod gitlab;
 pub mod graph;
 pub mod interpolation;
+pub mod lsp;
 pub mod model;
 pub mod output;
 

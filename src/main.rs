@@ -30,7 +30,12 @@ struct RunOutcome {
 }
 
 fn main() -> ExitCode {
-    match run(Cli::parse()) {
+    let cli = Cli::parse();
+    if matches!(&cli.command, Command::Lsp) {
+        envorigin::lsp::run_lsp();
+        return ExitCode::SUCCESS;
+    }
+    match run(cli) {
         Ok(outcome) => {
             println!("{}", outcome.output);
             outcome.exit_code
@@ -145,6 +150,8 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 }))
             }
         },
+        // Handled in main() before run() is called.
+        Command::Lsp => Ok(outcome(String::new())),
         Command::Actions(args) => match args.command {
             ActionsCommand::Scan(scan) => {
                 let report = envorigin::actions::analyze_workflow(
