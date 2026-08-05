@@ -369,11 +369,10 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [x] `envorigin diff` — compare dotenv files for environment drift
       (sensitive values redacted by default)
 - [x] real-repository validation: audited all 39 examples in
-      docker/awesome-compose. Every file parses and resolves; findings fixed
-      the analyzer: placeholder values (`wordpress`, `changeit`) are now
-      `sensitive-placeholder` warnings instead of errors, and interpolation
-      variables referenced via `$VAR` / `${VAR}` are no longer reported as
-      unused.
+      docker/awesome-compose (every file parses and resolves; findings fixed
+      the placeholder and unused-variable checks). The GitLab and CircleCI
+      backends were validated against real production configs: GitLab's own
+      Auto-DevOps template, and leiningen's JSON-format CircleCI config.
 
 **Phase 2 — visualization & IDE (in progress)**
 - [x] `envorigin graph` / `envorigin actions graph` — mermaid provenance
