@@ -4,6 +4,19 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-08-06
+
+### Added
+
+- Rules engine: `[patterns]` per-variable value format validation
+  (`pattern-mismatch` error; invalid regexes reported, not panicked).
+- `scripts/release.sh` — one-command release (tag, GitHub release,
+  crates.io, Homebrew formula update).
+- LSP analyzes unsaved buffer edits in memory (all four backends via
+  `with_content` variants; relative references still resolve on disk).
+- Audit reports `secret-manager-reference` (info) for values pointing at
+  Vault, AWS Secrets Manager/SSM, or secret templating.
+
 ## [0.3.0] - 2026-08-06
 
 Released to crates.io, GitHub Releases, and the Homebrew tap.

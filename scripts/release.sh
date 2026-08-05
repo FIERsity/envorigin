@@ -30,7 +30,12 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 
 echo "==> bumping version to $VERSION"
-cargo set-version "$VERSION"
+if cargo set-version --help >/dev/null 2>&1; then
+  cargo set-version "$VERSION"
+else
+  sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
+  cargo build --quiet  # sync Cargo.lock
+fi
 
 git add Cargo.toml Cargo.lock
 git commit -m "chore: release v${VERSION}"
