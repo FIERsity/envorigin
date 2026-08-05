@@ -24,8 +24,16 @@ pub enum Command {
     Audit(AuditArgs),
     /// Compare environment drift across dotenv files.
     Diff(DiffArgs),
+    /// Render a mermaid provenance graph of the environment.
+    Graph(GraphArgs),
     /// Analyze a GitHub Actions workflow's environment variables.
     Actions(ActionsArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct GraphArgs {
+    #[command(flatten)]
+    pub common: CommonArgs,
 }
 
 #[derive(Debug, Args)]
@@ -90,6 +98,8 @@ pub enum ActionsCommand {
     Explain(ActionsExplainArgs),
     /// Audit a workflow for env health issues.
     Audit(ActionsAuditArgs),
+    /// Render a mermaid provenance graph of the workflow env.
+    Graph(ActionsScanArgs),
 }
 
 #[derive(Debug, Args)]

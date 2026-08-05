@@ -5,6 +5,7 @@ pub mod compose;
 pub mod diff;
 pub mod docker;
 pub mod dotenv;
+pub mod graph;
 pub mod interpolation;
 pub mod model;
 pub mod output;

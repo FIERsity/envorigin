@@ -78,6 +78,8 @@ Commands:
   scan     List the variables configured for each Compose service
   explain  Explain the winning and shadowed sources for one variable
   audit    Audit a project for env health issues (sensitive values, dead code)
+  diff     Compare environment drift across dotenv files
+  graph    Render a mermaid provenance graph of the environment
   actions  Analyze a GitHub Actions workflow's environment variables
   help     Print this message or the help of the given subcommand(s)
 
@@ -215,6 +217,41 @@ EnvOrigin audits its own workflow on every push: the `Audit own workflow
 (dogfood)` step in `.github/workflows/ci.yml` runs
 `envorigin actions audit --fail-on warning` on the repository's CI file.
 
+### `diff`
+
+Compare dotenv files for environment drift — the same variable with different
+values across local, CI, and staging:
+
+```text
+$ envorigin diff .env ci.env
+
+EnvOrigin 0.3.0 — diff
+.env vs ci.env
+
+drift (2):
+  API_TOKEN: .env = <redacted sha256:61be8cd3> | ci.env = <redacted sha256:9b723f99>
+  DB_HOST: .env = "localhost" | ci.env = "db.prod.example.com"
+
+only in .env (1):
+  ONLY_LOCAL = "local_value"
+```
+
+Sensitive-looking variables are redacted unless `--show-values` is passed.
+
+### `graph`
+
+A mermaid provenance graph — pipe it into [mermaid-cli](https://github.com/mermaid-js/mermaid-cli),
+mermaid.ink, or any mermaid renderer:
+
+```text
+$ envorigin graph | mmdc -o provenance.svg
+```
+
+Solid edges point at the winning source, dashed edges at shadowed candidates
+(dashed with a `derived` label at interpolation dependencies). `actions graph`
+renders the workflow's job/step/variable/source layout. Output has been
+validated against the mermaid renderer.
+
 ## Design
 
 - **`src/compose.rs`** — Compose model (env_file specs, environment forms) and
@@ -251,7 +288,7 @@ Semantics notes:
 cargo test
 ```
 
-40 tests: unit tests for the dotenv parser, the interpolator, Compose
+47 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
@@ -275,8 +312,10 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
       variables referenced via `$VAR` / `${VAR}` are no longer reported as
       unused.
 
-**Phase 2 — visualization & IDE**
-- [ ] `envorigin graph` — provenance graph (mermaid/DOT) of service → variable → source
+**Phase 2 — visualization & IDE (in progress)**
+- [x] `envorigin graph` / `envorigin actions graph` — mermaid provenance
+      graph (solid = winner, dashed = shadowed, dashed-derived = dependency);
+      output validated against the mermaid renderer
 - [ ] LSP server + VS Code extension (hover source, jump-to-definition, live diagnostics)
 - [ ] GitLab CI / CircleCI env syntax support
 

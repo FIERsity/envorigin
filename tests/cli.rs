@@ -543,3 +543,35 @@ fn diff_show_values_reveals_sensitive() {
         .success()
         .stdout(predicate::str::contains("\"secret-local\""));
 }
+
+// --- graph ---
+
+#[test]
+fn graph_renders_provenance_edges() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("graph")
+        .arg("--no-docker-check")
+        .arg("--file")
+        .arg(fixture("precedence"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("graph LR"))
+        .stdout(predicate::str::contains("subgraph svc_web"))
+        .stdout(predicate::str::contains("-->|\"ServiceEnvironment\"|"))
+        .stdout(predicate::str::contains("-.->|\"shadowed\"|"))
+        .stdout(predicate::str::contains("-.->|\"derived\"|"));
+}
+
+#[test]
+fn actions_graph_renders_job_step_and_sources() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["actions", "graph", "--file"])
+        .arg(workflow_path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("subgraph job_build"))
+        .stdout(predicate::str::contains("step_"))
+        .stdout(predicate::str::contains("-->|\"StepEnv\"|"));
+}
