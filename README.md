@@ -382,7 +382,7 @@ Semantics notes:
 cargo test
 ```
 
-81 tests: unit tests for the dotenv parser, the interpolator, Compose
+85 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

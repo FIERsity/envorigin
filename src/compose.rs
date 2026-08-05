@@ -488,3 +488,153 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod service_tests {
+    use super::*;
+    use crate::interpolation::InterpolationContext;
+    use crate::model::SourceKind;
+
+    fn context() -> InterpolationContext<SourceRef> {
+        InterpolationContext::<SourceRef>::new()
+    }
+
+    fn service(env_files: Vec<EnvFileSpec>, environment: Vec<EnvironmentEntry>) -> Service {
+        Service {
+            env_files,
+            environment,
+        }
+    }
+
+    fn write_env(dir: &std::path::Path, name: &str, content: &str) -> String {
+        std::fs::write(dir.join(name), content).unwrap();
+        name.to_string()
+    }
+
+    #[test]
+    fn later_env_files_override_earlier_ones() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = write_env(dir.path(), "a.env", "K=from_a\nONLY_A=1\n");
+        let second = write_env(dir.path(), "b.env", "K=from_b\nONLY_B=1\n");
+        let svc = service(
+            vec![
+                EnvFileSpec {
+                    path: first,
+                    required: true,
+                    raw: false,
+                },
+                EnvFileSpec {
+                    path: second,
+                    required: true,
+                    raw: false,
+                },
+            ],
+            Vec::new(),
+        );
+        let report = analyze_service(
+            "web",
+            &svc,
+            &dir.path().join("compose.yaml"),
+            &context(),
+            None,
+        )
+        .unwrap();
+        let k = report.variables.iter().find(|v| v.variable == "K").unwrap();
+        assert_eq!(k.value.as_deref(), Some("from_b"));
+        assert_eq!(k.candidates.len(), 2);
+        assert!(matches!(
+            k.candidates[0].disposition,
+            CandidateDisposition::Shadowed
+        ));
+        assert!(matches!(
+            k.candidates[1].disposition,
+            CandidateDisposition::Winner
+        ));
+    }
+
+    #[test]
+    fn environment_overrides_env_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = write_env(dir.path(), "web.env", "K=from_file\n");
+        let svc = service(
+            vec![EnvFileSpec {
+                path: env_file,
+                required: true,
+                raw: false,
+            }],
+            vec![EnvironmentEntry {
+                key: "K".to_string(),
+                value: Some("from_environment".to_string()),
+                line: Some(5),
+            }],
+        );
+        let report = analyze_service(
+            "web",
+            &svc,
+            &dir.path().join("compose.yaml"),
+            &context(),
+            None,
+        )
+        .unwrap();
+        let k = report.variables.iter().find(|v| v.variable == "K").unwrap();
+        assert_eq!(k.value.as_deref(), Some("from_environment"));
+        assert!(matches!(
+            k.winner.as_ref().unwrap().kind,
+            SourceKind::ServiceEnvironment
+        ));
+    }
+
+    #[test]
+    fn canonical_docker_values_override_local_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = write_env(dir.path(), "web.env", "K=from_file\n");
+        let svc = service(
+            vec![EnvFileSpec {
+                path: env_file,
+                required: true,
+                raw: false,
+            }],
+            Vec::new(),
+        );
+        let canonical: BTreeMap<String, Option<String>> =
+            BTreeMap::from([("K".to_string(), Some("docker_truth".to_string()))]);
+        let report = analyze_service(
+            "web",
+            &svc,
+            &dir.path().join("compose.yaml"),
+            &context(),
+            Some(&canonical),
+        )
+        .unwrap();
+        let k = report.variables.iter().find(|v| v.variable == "K").unwrap();
+        assert_eq!(k.value.as_deref(), Some("docker_truth"));
+        assert!(k
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "docker-divergence"));
+    }
+
+    #[test]
+    fn absent_env_file_entries_become_removed_candidates() {
+        let svc = service(
+            Vec::new(),
+            vec![EnvironmentEntry {
+                key: "EMPTY".to_string(),
+                value: None,
+                line: Some(7),
+            }],
+        );
+        let report =
+            analyze_service("web", &svc, Path::new("compose.yaml"), &context(), None).unwrap();
+        let empty = report
+            .variables
+            .iter()
+            .find(|v| v.variable == "EMPTY")
+            .unwrap();
+        assert_eq!(empty.state, VariableState::Absent);
+        assert!(matches!(
+            empty.candidates[0].disposition,
+            CandidateDisposition::Removed
+        ));
+    }
+}
