@@ -4,6 +4,13 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-08-06
+
+### Fixed
+
+- `completions` output piped into `head`/`grep` no longer panics on a
+  broken pipe.
+
 ## [0.5.0] - 2026-08-06
 
 ### Added
