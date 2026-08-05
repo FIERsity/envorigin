@@ -1037,7 +1037,8 @@ fn step_label(step: &ActionsStep) -> String {
         (Some(name), _, _) => format!("\"{name}\""),
         (None, Some(uses), _) => uses.clone(),
         (None, None, Some(id)) => format!("#{id}"),
-        (None, None, None) => format!("#{}", step.index),
+        // 1-based step numbers for human output (internal index is 0-based).
+        (None, None, None) => format!("#{}", step.index + 1),
     }
 }
 
