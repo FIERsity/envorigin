@@ -428,6 +428,39 @@ envorigin completions zsh   > ~/.zfunc/_envorigin
 envorigin completions fish  > ~/.config/fish/completions/envorigin.fish
 ```
 
+## Real-world example
+
+Running the released binary against [outline](https://github.com/outline/outline)'s
+`docker-compose.yml` (production knowledge-base app) with its `.env`:
+
+```text
+$ envorigin audit -f docker-compose.yml --project-directory .
+
+0 error(s), 1 warning(s), 87 info
+
+warning [sensitive-placeholder]: POSTGRES_PASSWORD is set to a placeholder-looking value; replace it before deploying (docker-compose.yml:13)
+info [unused-interpolation-variable]: NODE_ENV in the interpolation file is not consumed by any service (.env:1)
+info [unused-interpolation-variable]: URL in the interpolation file is not consumed by any service (.env:22)
+info [unused-interpolation-variable]: PORT in the interpolation file is not consumed by any service (.env:26)
+info [unused-interpolation-variable]: COLLABORATION_URL in the interpolation file is not consumed by any service (.env:30)
+```
+
+The audit reads the same way a maintainer would: the 312-line `.env` is
+almost entirely runtime configuration for the application, and only a
+handful of variables ever reach the Compose services — a real, immediately
+actionable answer to "why doesn't my .env change anything?".
+
+```text
+$ envorigin explain POSTGRES_PASSWORD -s postgres
+
+POSTGRES_PASSWORD for service postgres
+state: present
+value: <redacted sha256:d74ff0ee>
+winner: service environment (docker-compose.yml:13)
+candidates:
+  - [winner] service environment (docker-compose.yml:13) = <redacted sha256:d74ff0ee>
+```
+
 ## Release
 
 `./scripts/release.sh <version>` tags, creates the GitHub release, publishes to
