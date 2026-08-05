@@ -4,7 +4,7 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [0.3.0] - 2026-08-06
+## [Unreleased]
 
 ### Added
 
@@ -33,7 +33,7 @@ All notable changes to EnvOrigin are documented here. The format follows
 - Interpolation engine (`InterpolationContext`) is now generic over the
   source-reference type, shared by all four backends.
 - Toolchain raised from Rust 1.85 to 1.86 (tower-lsp dependency).
-- Audit placeholder detection: example-like values (`wordpress`, `changeit`)
+- Audit placeholder detection: example-like values (`WordPress`, `changeit`)
   downgrade to `sensitive-placeholder` warnings instead of errors.
 
 ### Fixed

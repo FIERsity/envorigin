@@ -369,8 +369,8 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [x] `envorigin diff` — compare dotenv files for environment drift
       (sensitive values redacted by default)
 - [x] real-repository validation: audited all 39 examples in
-      docker/awesome-compose (every file parses and resolves; findings fixed
-      the placeholder and unused-variable checks). The GitLab and CircleCI
+      docker/awesome-compose (every file parses and resolves; the findings fixed the
+      placeholder and unused-variable checks). The GitLab and CircleCI
       backends were validated against real production configs: GitLab's own
       Auto-DevOps template, and leiningen's JSON-format CircleCI config.
 
