@@ -790,3 +790,82 @@ fn severity_label(severity: Severity) -> &'static str {
         Severity::Error => "error",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture_path() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/circleci/.circleci/config.yml")
+    }
+
+    #[test]
+    fn job_env_overrides_executor_env() {
+        let report = analyze_circleci(&fixture_path()).unwrap();
+        let build = report.jobs.iter().find(|job| job.id == "build").unwrap();
+        let shared = build
+            .variables
+            .iter()
+            .find(|variable| variable.variable == "SHARED")
+            .unwrap();
+        assert_eq!(shared.value.as_deref(), Some("job_value"));
+        assert_eq!(shared.candidates.len(), 2);
+        assert!(matches!(
+            shared.candidates[0].disposition,
+            CircleciDisposition::Shadowed
+        ));
+        assert!(matches!(
+            shared.candidates[1].disposition,
+            CircleciDisposition::Winner
+        ));
+        let executor_only = build
+            .variables
+            .iter()
+            .find(|variable| variable.variable == "EXECUTOR_ENV")
+            .unwrap();
+        assert!(matches!(
+            executor_only.winner.as_ref().unwrap().kind,
+            CircleciSourceKind::Executor
+        ));
+    }
+
+    #[test]
+    fn parameters_and_contexts_are_tracked() {
+        let report = analyze_circleci(&fixture_path()).unwrap();
+        let build = report.jobs.iter().find(|job| job.id == "build").unwrap();
+        assert_eq!(build.parameters.len(), 1);
+        assert_eq!(build.parameters[0].name, "target");
+        assert_eq!(build.parameters[0].default.as_deref(), Some("prod"));
+        let target = build
+            .variables
+            .iter()
+            .find(|variable| variable.variable == "TARGET")
+            .unwrap();
+        assert!(target.references.iter().any(|reference| {
+            reference.expression == "parameters.target"
+                && reference
+                    .source
+                    .as_ref()
+                    .is_some_and(|source| source.kind == CircleciSourceKind::Parameter)
+        }));
+
+        let deploy = report.jobs.iter().find(|job| job.id == "deploy").unwrap();
+        assert_eq!(deploy.context, vec!["deploy-context"]);
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "circleci-context-external"));
+    }
+
+    #[test]
+    fn values_interpolate_in_scope() {
+        let report = analyze_circleci(&fixture_path()).unwrap();
+        let build = report.jobs.iter().find(|job| job.id == "build").unwrap();
+        let composite = build
+            .variables
+            .iter()
+            .find(|variable| variable.variable == "COMPOSITE")
+            .unwrap();
+        assert_eq!(composite.value.as_deref(), Some("job_value-suffix"));
+    }
+}
