@@ -748,3 +748,54 @@ fn circleci_audit_reports_shadowing_and_contexts() {
         .stdout(predicate::str::contains("circleci-context-external"))
         .stdout(predicate::str::contains("deploy-context"));
 }
+
+// --- rules engine ---
+
+fn rules_fixture() -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/rules/envorigin.toml")
+        .display()
+        .to_string()
+}
+
+#[test]
+fn audit_enforces_rules_from_config() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--config"])
+        .arg(rules_fixture())
+        .arg("--file")
+        .arg(fixture("precedence"))
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("required-variable-missing"))
+        .stdout(predicate::str::contains("DATABASE_URL"))
+        .stdout(predicate::str::contains("naming-prefix"))
+        .stdout(predicate::str::contains("APP_"));
+}
+
+#[test]
+fn audit_without_config_has_no_rule_issues() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--file"])
+        .arg(fixture("precedence"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("required-variable-missing").not())
+        .stdout(predicate::str::contains("naming-prefix").not());
+}
+
+#[test]
+fn actions_audit_enforces_rules() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["actions", "audit", "--config"])
+        .arg(rules_fixture())
+        .arg("--file")
+        .arg(workflow_path())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("required-variable-missing"))
+        .stdout(predicate::str::contains("forbidden-variable").not());
+}

@@ -1,0 +1,4 @@
+# Team conventions enforced by the audit.
+required = ["DATABASE_URL", "LOG_LEVEL"]
+prefix = "APP_"
+forbidden = ["CI"]

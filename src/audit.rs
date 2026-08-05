@@ -110,7 +110,10 @@ fn check_sensitive_value(
     }
 }
 
-pub fn audit_project(report: &ProjectReport) -> Vec<AuditIssue> {
+pub fn audit_project(
+    report: &ProjectReport,
+    rules: Option<&crate::rules::Rules>,
+) -> Vec<AuditIssue> {
     let mut issues = Vec::new();
     for diagnostic in &report.diagnostics {
         issues.push(AuditIssue::from(diagnostic));
@@ -191,6 +194,10 @@ pub fn audit_project(report: &ProjectReport) -> Vec<AuditIssue> {
             }
         }
     }
+    if let Some(rules) = rules {
+        let names: Vec<String> = consumed.iter().map(|name| (*name).to_string()).collect();
+        issues.extend(crate::rules::check_rules(&names, rules));
+    }
     issues
 }
 
@@ -209,7 +216,10 @@ fn deduplicate(issues: Vec<AuditIssue>) -> Vec<AuditIssue> {
         .collect()
 }
 
-pub fn audit_workflow(report: &ActionsReport) -> Vec<AuditIssue> {
+pub fn audit_workflow(
+    report: &ActionsReport,
+    rules: Option<&crate::rules::Rules>,
+) -> Vec<AuditIssue> {
     let mut issues = Vec::new();
     for diagnostic in &report.diagnostics {
         issues.push(AuditIssue::from(diagnostic));
@@ -256,10 +266,28 @@ pub fn audit_workflow(report: &ActionsReport) -> Vec<AuditIssue> {
             }
         }
     }
+    if let Some(rules) = rules {
+        let mut names: Vec<String> = report
+            .jobs
+            .iter()
+            .flat_map(|job| {
+                job.variables
+                    .iter()
+                    .chain(job.steps.iter().flat_map(|step| step.variables.iter()))
+                    .map(|variable| variable.variable.clone())
+            })
+            .collect();
+        names.sort();
+        names.dedup();
+        issues.extend(crate::rules::check_rules(&names, rules));
+    }
     deduplicate(issues)
 }
 
-pub fn audit_gitlab(report: &crate::gitlab::GitlabReport) -> Vec<AuditIssue> {
+pub fn audit_gitlab(
+    report: &crate::gitlab::GitlabReport,
+    rules: Option<&crate::rules::Rules>,
+) -> Vec<AuditIssue> {
     let mut issues = Vec::new();
     for diagnostic in &report.diagnostics {
         issues.push(AuditIssue::from(diagnostic));
@@ -272,10 +300,17 @@ pub fn audit_gitlab(report: &crate::gitlab::GitlabReport) -> Vec<AuditIssue> {
     {
         audit_variable(&mut issues, variable, &mut seen);
     }
+    if let Some(rules) = rules {
+        let names: Vec<String> = seen.iter().cloned().collect();
+        issues.extend(crate::rules::check_rules(&names, rules));
+    }
     deduplicate(issues)
 }
 
-pub fn audit_circleci(report: &crate::circleci::CircleciReport) -> Vec<AuditIssue> {
+pub fn audit_circleci(
+    report: &crate::circleci::CircleciReport,
+    rules: Option<&crate::rules::Rules>,
+) -> Vec<AuditIssue> {
     let mut issues = Vec::new();
     for diagnostic in &report.diagnostics {
         issues.push(AuditIssue::from(diagnostic));
@@ -283,6 +318,10 @@ pub fn audit_circleci(report: &crate::circleci::CircleciReport) -> Vec<AuditIssu
     let mut seen = std::collections::HashSet::new();
     for variable in report.jobs.iter().flat_map(|job| job.variables.iter()) {
         audit_variable(&mut issues, variable, &mut seen);
+    }
+    if let Some(rules) = rules {
+        let names: Vec<String> = seen.iter().cloned().collect();
+        issues.extend(crate::rules::check_rules(&names, rules));
     }
     deduplicate(issues)
 }

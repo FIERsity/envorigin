@@ -30,6 +30,8 @@ pub enum AnalysisError {
     UnknownVariable { service: String, variable: String },
     #[error("invalid workflow in {path}: {message}")]
     InvalidWorkflow { path: PathBuf, message: String },
+    #[error("invalid rules file {path}: {message}")]
+    InvalidRules { path: PathBuf, message: String },
     #[error("unknown job '{0}'")]
     UnknownJob(String),
     #[error("--step is required because job '{0}' defines multiple steps")]
