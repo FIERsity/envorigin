@@ -197,6 +197,7 @@ express:
 | `sensitive-value` | error | a variable whose name matches `TOKEN`/`SECRET`/`PASSWORD`/`KEY`/… is set to a concrete value |
 | `undefined-interpolation-variable` | warning | `$VAR` / `${VAR}` references a variable that resolves to empty |
 | `shadowed-env-line` | warning | a definition loses to a higher-precedence layer with a different value — dead code |
+| `secret-manager-reference` | info | a sensitive variable references an external secret (Vault, AWS Secrets Manager/SSM, templating) — its value cannot be resolved statically |
 | `unused-interpolation-variable` | info | an interpolation-file variable no service consumes |
 | `dotenv-trailing-content`, docker checks, … | as diagnosed | existing analyzer diagnostics |
 
@@ -334,9 +335,10 @@ references:
   references, shadowed dead-code lines, sensitive values — as you edit.
 
 Documents are routed to the matching backend by file name (`compose.y*ml`,
-`.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`). v1
-reads files from disk, so unsaved buffer edits are not analyzed yet. The
-extension lives in [`vscode/`](vscode/) (TS client, `npm run compile` to
+`.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`).
+Unsaved buffer edits are analyzed in memory — hover and diagnostics track
+the buffer, while relative references still resolve against the real file
+location. The extension lives in [`vscode/`](vscode/) (TS client, `npm run compile` to
 build, `binaryPath` setting to point at the CLI).
 
 ## Design
@@ -375,7 +377,7 @@ Semantics notes:
 cargo test
 ```
 
-67 tests: unit tests for the dotenv parser, the interpolator, Compose
+68 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

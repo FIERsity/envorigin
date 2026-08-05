@@ -5,6 +5,7 @@ services:
       - ./env/web.env
     environment:
       API_TOKEN: sk-live-12345
+      VAULT_TOKEN: vault:secret/data/db#password
       EXAMPLE_TOKEN: changeme
       UNUSED_FLAG:
       BROKEN: ${UNDEFINED_VAR}

@@ -428,7 +428,17 @@ fn resolve(
 }
 
 pub fn analyze_gitlab(path: &Path) -> Result<GitlabReport, AnalysisError> {
-    let content = fs::read_to_string(path)?;
+    analyze_gitlab_with_content(path, None)
+}
+
+pub fn analyze_gitlab_with_content(
+    path: &Path,
+    content: Option<&str>,
+) -> Result<GitlabReport, AnalysisError> {
+    let content = match content {
+        Some(content) => content.to_string(),
+        None => fs::read_to_string(path)?,
+    };
     let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
         path: path.to_path_buf(),
         source,

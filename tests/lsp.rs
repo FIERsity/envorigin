@@ -194,3 +194,41 @@ fn lsp_unknown_file_type_yields_no_diagnostics() {
 fn _timeout_hint() -> Duration {
     Duration::from_secs(10)
 }
+
+#[test]
+fn lsp_unsaved_changes_reflect_in_diagnostics() {
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/precedence/compose.yaml");
+    let uri = format!("file://{}", fixture.display());
+    let content = std::fs::read_to_string(&fixture).unwrap();
+
+    let mut client = LspClient::start();
+    client.request(1, "initialize", json!({"capabilities": {}}));
+    client.notify("initialized", json!({}));
+    client.notify(
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {"uri": uri, "languageId": "yaml", "version": 1, "text": content}
+        }),
+    );
+    let _ = client.receive_until("textDocument/publishDiagnostics");
+
+    // Unsaved edit: add a variable referencing an undefined variable.
+    let edited = content.replace("      Y:\n", "      Y:\n      BROKEN: ${UNDEFINED_VAR}\n");
+    client.notify(
+        "textDocument/didChange",
+        json!({
+            "textDocument": {"uri": uri, "version": 2},
+            "contentChanges": [{"text": edited}]
+        }),
+    );
+    let published = client.receive_until("textDocument/publishDiagnostics");
+    let diagnostics = published["params"]["diagnostics"].as_array().unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "undefined-interpolation-variable"),
+        "unsaved edit should surface the undefined reference, got {diagnostics:?}"
+    );
+    client.shutdown().expect("graceful shutdown");
+}
