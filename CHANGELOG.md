@@ -4,6 +4,16 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-08-06
+
+### Fixed
+
+- LSP routed only `.yml` workflow files, silently dropping `.yaml` files
+  (no diagnostics or hover in the editor); both suffixes now route.
+- LSP now surfaces step-level diagnostics (`GITHUB_ENV` runtime writes were
+  invisible in the editor).
+- Homebrew formula installs shell completions.
+
 ## [0.4.0] - 2026-08-06
 
 ### Added
