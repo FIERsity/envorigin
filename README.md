@@ -440,6 +440,48 @@ envorigin completions zsh   > ~/.zfunc/_envorigin
 envorigin completions fish  > ~/.config/fish/completions/envorigin.fish
 ```
 
+## CI integration
+
+`audit` is built to gate pipelines: `--format json` for parsing,
+`--fail-on <level>` for the exit code. Wire it into any of the three CI
+platforms EnvOrigin understands:
+
+**GitHub Actions**
+
+```yaml
+- name: Install envorigin
+  run: cargo install envorigin
+- name: Audit environment config
+  run: envorigin audit --fail-on warning
+```
+
+**GitLab CI**
+
+```yaml
+audit:
+  script:
+    - cargo install envorigin
+    - envorigin gitlab audit --fail-on warning
+  allow_failure: false
+```
+
+**CircleCI**
+
+```yaml
+jobs:
+  audit:
+    docker:
+      - image: cimg/rust:1.86
+    steps:
+      - checkout
+      - run: cargo install envorigin
+      - run: envorigin circleci audit --fail-on warning
+```
+
+Each audit command targets its own platform's config file by default
+(`compose.yaml`, `.github/workflows/ci.yml`, `.gitlab-ci.yml`,
+`.circleci/config.yml`) and applies `envorigin.toml` rules automatically.
+
 ## Real-world example
 
 Running the released binary against [outline](https://github.com/outline/outline)'s
