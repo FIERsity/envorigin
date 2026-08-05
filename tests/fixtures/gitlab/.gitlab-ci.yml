@@ -18,6 +18,7 @@ build:
   variables:
     GLOBAL_ONLY: overridden_in_job
     BUILD_ID: $CI_PIPELINE_ID-$APP_NAME
+    BROKEN: $UNDEFINED_REF
   script:
     - echo "building"
 

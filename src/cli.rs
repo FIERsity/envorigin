@@ -48,6 +48,17 @@ pub enum CircleciCommand {
     Scan(CircleciScanArgs),
     /// Explain the winning and shadowed sources for one variable.
     Explain(CircleciExplainArgs),
+    /// Audit the configuration for env health issues.
+    Audit(CircleciAuditArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct CircleciAuditArgs {
+    #[command(flatten)]
+    pub common: CircleciScanArgs,
+    /// Fail (exit 1) when issues of this severity or higher are found.
+    #[arg(long, value_enum, default_value_t = FailLevel::Error)]
+    pub fail_on: FailLevel,
 }
 
 #[derive(Debug, Args)]
@@ -86,6 +97,17 @@ pub enum GitlabCommand {
     Scan(GitlabScanArgs),
     /// Explain the winning and shadowed sources for one variable.
     Explain(GitlabExplainArgs),
+    /// Audit the configuration for env health issues.
+    Audit(GitlabAuditArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct GitlabAuditArgs {
+    #[command(flatten)]
+    pub common: GitlabScanArgs,
+    /// Fail (exit 1) when issues of this severity or higher are found.
+    #[arg(long, value_enum, default_value_t = FailLevel::Error)]
+    pub fail_on: FailLevel,
 }
 
 #[derive(Debug, Args)]

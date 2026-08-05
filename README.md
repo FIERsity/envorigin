@@ -185,7 +185,7 @@ Flags: `-f/--file` (default `.github/workflows/ci.yml`), `-j/--job`,
 `-s/--step` (name, id, or index), `--project-directory`,
 `--show-values`, `--format json`.
 
-### `audit` / `actions audit`
+### `audit` / `actions audit` / `gitlab audit` / `circleci audit`
 
 A checkable health report for a whole project. It aggregates every
 diagnostic the analyzer produces, then adds checks a diagnostic model cannot
@@ -351,7 +351,7 @@ Semantics notes:
 cargo test
 ```
 
-57 tests: unit tests for the dotenv parser, the interpolator, Compose
+60 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

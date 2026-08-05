@@ -709,3 +709,42 @@ fn circleci_variables_interpolate_in_scope() {
         .stdout(predicate::str::contains("\"job_value-suffix\""))
         .stdout(predicate::str::contains("SHARED"));
 }
+
+// --- gitlab/circleci audit ---
+
+#[test]
+fn gitlab_audit_reports_undefined_refs_and_shadowing() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["gitlab", "audit", "--file"])
+        .arg(gitlab_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("undefined-interpolation-variable"))
+        .stdout(predicate::str::contains("UNDEFINED_REF"))
+        .stdout(predicate::str::contains("shadowed-env-line"))
+        .stdout(predicate::str::contains("gitlab-include-external"));
+}
+
+#[test]
+fn gitlab_audit_fail_on_warning_exits_nonzero() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["gitlab", "audit", "--fail-on", "warning", "--file"])
+        .arg(gitlab_fixture())
+        .assert()
+        .failure();
+}
+
+#[test]
+fn circleci_audit_reports_shadowing_and_contexts() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["circleci", "audit", "--file"])
+        .arg(circleci_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("shadowed-env-line"))
+        .stdout(predicate::str::contains("circleci-context-external"))
+        .stdout(predicate::str::contains("deploy-context"));
+}

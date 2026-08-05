@@ -259,6 +259,137 @@ pub fn audit_workflow(report: &ActionsReport) -> Vec<AuditIssue> {
     deduplicate(issues)
 }
 
+pub fn audit_gitlab(report: &crate::gitlab::GitlabReport) -> Vec<AuditIssue> {
+    let mut issues = Vec::new();
+    for diagnostic in &report.diagnostics {
+        issues.push(AuditIssue::from(diagnostic));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for variable in report
+        .global_variables
+        .iter()
+        .chain(report.jobs.iter().flat_map(|job| job.variables.iter()))
+    {
+        audit_variable(&mut issues, variable, &mut seen);
+    }
+    deduplicate(issues)
+}
+
+pub fn audit_circleci(report: &crate::circleci::CircleciReport) -> Vec<AuditIssue> {
+    let mut issues = Vec::new();
+    for diagnostic in &report.diagnostics {
+        issues.push(AuditIssue::from(diagnostic));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for variable in report.jobs.iter().flat_map(|job| job.variables.iter()) {
+        audit_variable(&mut issues, variable, &mut seen);
+    }
+    deduplicate(issues)
+}
+
+/// Shared per-variable audit for the GitLab and CircleCI backends: variable
+/// diagnostics, sensitive values, and shadowed dead-code lines. `seen` keeps
+/// one report per variable name across the global + job scopes.
+fn audit_variable<V>(issues: &mut Vec<AuditIssue>, variable: &V, seen: &mut HashSet<String>)
+where
+    V: VariableAudit,
+{
+    if !seen.insert(variable.name().to_string()) {
+        return;
+    }
+    for diagnostic in variable.diagnostics() {
+        issues.push(AuditIssue::from(diagnostic));
+    }
+    if let Some(value) = variable.value() {
+        if is_sensitive(variable.name()) && !value.is_empty() {
+            let location = variable.winner_location();
+            check_sensitive_value(
+                issues,
+                variable.name(),
+                value,
+                location.as_ref().and_then(|(path, _)| path.clone()),
+                location.and_then(|(_, line)| line),
+            );
+        }
+    }
+    for (path, line) in variable.shadowed_lines() {
+        issues.push(AuditIssue::new(
+            Severity::Warning,
+            "shadowed-env-line",
+            format!(
+                "{} is shadowed by a higher-precedence layer and can be removed",
+                variable.name()
+            ),
+            path,
+            line,
+        ));
+    }
+}
+
+/// Abstraction over GitLab/CircleCI variable shapes so the shared audit
+/// logic stays single-sourced.
+trait VariableAudit {
+    fn name(&self) -> &str;
+    fn value(&self) -> Option<&str>;
+    fn diagnostics(&self) -> &[Diagnostic];
+    fn winner_location(&self) -> Option<(Option<PathBuf>, Option<usize>)>;
+    fn shadowed_lines(&self) -> Vec<(Option<PathBuf>, Option<usize>)>;
+}
+
+impl VariableAudit for crate::gitlab::GitlabVariable {
+    fn name(&self) -> &str {
+        &self.variable
+    }
+    fn value(&self) -> Option<&str> {
+        self.value.as_deref()
+    }
+    fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+    fn winner_location(&self) -> Option<(Option<PathBuf>, Option<usize>)> {
+        self.winner
+            .as_ref()
+            .map(|winner| (winner.path.clone(), winner.line))
+    }
+    fn shadowed_lines(&self) -> Vec<(Option<PathBuf>, Option<usize>)> {
+        self.candidates
+            .iter()
+            .filter(|candidate| {
+                candidate.disposition == crate::gitlab::GitlabDisposition::Shadowed
+                    && candidate.value.as_deref() != self.value.as_deref()
+            })
+            .map(|candidate| (candidate.source.path.clone(), candidate.source.line))
+            .collect()
+    }
+}
+
+impl VariableAudit for crate::circleci::CircleciVariable {
+    fn name(&self) -> &str {
+        &self.variable
+    }
+    fn value(&self) -> Option<&str> {
+        self.value.as_deref()
+    }
+    fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+    fn winner_location(&self) -> Option<(Option<PathBuf>, Option<usize>)> {
+        self.winner
+            .as_ref()
+            .map(|winner| (winner.path.clone(), winner.line))
+    }
+    fn shadowed_lines(&self) -> Vec<(Option<PathBuf>, Option<usize>)> {
+        self.candidates
+            .iter()
+            .filter(|candidate| {
+                candidate.disposition == crate::circleci::CircleciDisposition::Shadowed
+                    && candidate.value.as_deref() != self.value.as_deref()
+            })
+            .map(|candidate| (candidate.source.path.clone(), candidate.source.line))
+            .collect()
+    }
+}
+
 // --- rendering -----------------------------------------------------------
 
 pub fn audit_human(target: &str, issues: &[AuditIssue]) -> String {
