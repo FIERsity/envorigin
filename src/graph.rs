@@ -117,6 +117,105 @@ pub fn project_graph(report: &ProjectReport) -> String {
     builder.finish()
 }
 
+pub fn gitlab_graph(report: &crate::gitlab::GitlabReport) -> String {
+    let mut builder = GraphBuilder::new();
+    let globals_id = "globals";
+    builder.lines.push(format!(
+        "  subgraph {globals_id}[{}]",
+        mermaid_label("global variables")
+    ));
+    for variable in &report.global_variables {
+        let var_id = format!("var_global_{}", safe_id(&variable.variable));
+        builder.variable(&var_id, &variable.variable, variable.state);
+        add_source_edges(
+            &mut builder,
+            &var_id,
+            variable.winner.as_ref().map(|winner| winner.label()),
+            variable
+                .candidates
+                .iter()
+                .filter(|candidate| {
+                    candidate.disposition == crate::gitlab::GitlabDisposition::Shadowed
+                })
+                .map(|candidate| candidate.source.label()),
+        );
+    }
+    builder.end_subgraph();
+    for job in &report.jobs {
+        let job_id = format!("job_{}", safe_id(&job.id));
+        builder.lines.push(format!(
+            "  subgraph {job_id}[{}]",
+            mermaid_label(&format!("job {}", job.id))
+        ));
+        for variable in &job.variables {
+            let var_id = format!("var_{}_{}", job_id, safe_id(&variable.variable));
+            builder.variable(&var_id, &variable.variable, variable.state);
+            add_source_edges(
+                &mut builder,
+                &var_id,
+                variable.winner.as_ref().map(|winner| winner.label()),
+                variable
+                    .candidates
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.disposition == crate::gitlab::GitlabDisposition::Shadowed
+                    })
+                    .map(|candidate| candidate.source.label()),
+            );
+        }
+        builder.end_subgraph();
+    }
+    builder.finish()
+}
+
+pub fn circleci_graph(report: &crate::circleci::CircleciReport) -> String {
+    let mut builder = GraphBuilder::new();
+    for job in &report.jobs {
+        let job_id = format!("job_{}", safe_id(&job.id));
+        builder.lines.push(format!(
+            "  subgraph {job_id}[{}]",
+            mermaid_label(&format!("job {}", job.id))
+        ));
+        for variable in &job.variables {
+            let var_id = format!("var_{}_{}", job_id, safe_id(&variable.variable));
+            builder.variable(&var_id, &variable.variable, variable.state);
+            add_source_edges(
+                &mut builder,
+                &var_id,
+                variable.winner.as_ref().map(|winner| winner.label()),
+                variable
+                    .candidates
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.disposition == crate::circleci::CircleciDisposition::Shadowed
+                    })
+                    .map(|candidate| candidate.source.label()),
+            );
+        }
+        builder.end_subgraph();
+    }
+    builder.finish()
+}
+
+/// Shared edges for the GitLab/CircleCI graphs: winner (solid) and
+/// shadowed candidates (dashed). Labels carry no kind information — the
+/// source types are backend-specific.
+fn add_source_edges(
+    builder: &mut GraphBuilder,
+    var_id: &str,
+    winner_label: Option<String>,
+    shadowed: impl Iterator<Item = String>,
+) {
+    if let Some(label) = winner_label {
+        let id = builder.source_id(&label);
+        builder.edge(var_id, &id, "-->", "winner");
+    }
+    for label in shadowed {
+        let id = builder.source_id(&label);
+        builder.edge(var_id, &id, "-.->", "shadowed");
+    }
+}
+
 pub fn actions_graph(report: &ActionsReport) -> String {
     let mut builder = GraphBuilder::new();
     for job in &report.jobs {

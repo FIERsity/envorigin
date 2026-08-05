@@ -274,8 +274,9 @@ $ envorigin graph | mmdc -o provenance.svg
 
 Solid edges point at the winning source, dashed edges at shadowed candidates
 (dashed with a `derived` label at interpolation dependencies). `actions graph`
-renders the workflow's job/step/variable/source layout. Output has been
-validated against the mermaid renderer.
+renders the workflow's job/step/variable/source layout; `gitlab graph` and
+`circleci graph` render the same provenance for their backends. Output has
+been validated against the mermaid renderer for all four.
 
 ### `gitlab`
 
@@ -373,7 +374,7 @@ Semantics notes:
 cargo test
 ```
 
-65 tests: unit tests for the dotenv parser, the interpolator, Compose
+67 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

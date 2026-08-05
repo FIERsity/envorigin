@@ -50,6 +50,8 @@ pub enum CircleciCommand {
     Explain(CircleciExplainArgs),
     /// Audit the configuration for env health issues.
     Audit(CircleciAuditArgs),
+    /// Render a mermaid provenance graph of the variables.
+    Graph(CircleciScanArgs),
 }
 
 #[derive(Debug, Args)]
@@ -102,6 +104,8 @@ pub enum GitlabCommand {
     Explain(GitlabExplainArgs),
     /// Audit the configuration for env health issues.
     Audit(GitlabAuditArgs),
+    /// Render a mermaid provenance graph of the variables.
+    Graph(GitlabScanArgs),
 }
 
 #[derive(Debug, Args)]

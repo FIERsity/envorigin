@@ -799,3 +799,32 @@ fn actions_audit_enforces_rules() {
         .stdout(predicate::str::contains("required-variable-missing"))
         .stdout(predicate::str::contains("forbidden-variable").not());
 }
+
+// --- gitlab/circleci graph ---
+
+#[test]
+fn gitlab_graph_renders_globals_and_jobs() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["gitlab", "graph", "--file"])
+        .arg(gitlab_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("subgraph globals"))
+        .stdout(predicate::str::contains("subgraph job_build"))
+        .stdout(predicate::str::contains("-->|\"winner\"|"))
+        .stdout(predicate::str::contains("-.->|\"shadowed\"|"));
+}
+
+#[test]
+fn circleci_graph_renders_jobs_and_sources() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["circleci", "graph", "--file"])
+        .arg(circleci_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("subgraph job_build"))
+        .stdout(predicate::str::contains("-->|\"winner\"|"))
+        .stdout(predicate::str::contains("-.->|\"shadowed\"|"));
+}
