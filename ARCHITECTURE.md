@@ -141,6 +141,9 @@ releases in batches.
   findings stay stable. Always rebuilds the release binary (a stale
   `target/release` silently tests ancient code).
 - **`scripts/validate-graphs.sh`**: mermaid syntax via the official parser.
+- **CodeQL** (`.github/workflows/codeql.yml`): Rust SAST on every PR, push
+  to main, and weekly; combined with `cargo audit` in the release gate,
+  the dependency tree and the source are both scanned.
 - Real-repo sweeps have repeatedly found genuine bugs (multi-doc YAML,
   merge keys, missing env files, `release:` job names, v2 input syntax) —
   run them before release.
