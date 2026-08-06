@@ -31,6 +31,10 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             ext: ""
+          - name: linux-aarch64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            ext: ""
           - name: macos-arm64
             os: macos-14
             target: aarch64-apple-darwin
@@ -53,6 +57,12 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+      - name: Install cross linker (linux-aarch64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
       - name: Upload binary to release
