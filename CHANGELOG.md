@@ -58,6 +58,12 @@ All notable changes to EnvOrigin are documented here. The format follows
   lockfile even older at 0.3.0). Synced to the CLI version and
   `release.sh` now bumps `vscode/package.json` + `package-lock.json`
   with every release so they can never drift again.
+- Short-syntax `env_file:` was treated as required, so a missing env
+  file (a gitignored `.env` in a fresh clone, mastodon's
+  `.env.production`) hard-errored the analysis. `docker compose config`
+  treats it as a notice and exits 0; the analyzer now mirrors that —
+  missing short-syntax env files are skipped with `info
+  [env-file-missing]` (long syntax with `required: true` still errors).
 
 ## [1.11.0] - 2026-08-06
 
