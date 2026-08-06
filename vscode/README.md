@@ -19,7 +19,7 @@ npm run compile
 npx @vscode/vsce package
 ```
 
-Then `code --install-extension envorigin-vscode-0.3.0.vsix`.
+Then `code --install-extension envorigin-vscode-<version>.vsix`.
 
 ## Features
 
