@@ -20,6 +20,11 @@ All notable changes to EnvOrigin are documented here. The format follows
 - GitHub Releases carry prebuilt binaries for linux x86_64/arm64, macOS
   arm64/x86_64, and Windows x86_64 (built by `release.yml` on every
   published release; re-runnable via `workflow_dispatch`).
+- `actions explain --debug` — layer-by-layer resolution trace (workflow
+  env < job env < step env < env file < inputs; winner vs shadowed).
+- `empty-value` audit info — a variable that resolves to an empty string,
+  usually an accidental stub; all five audit entry points.
+- Dependabot — weekly cargo and GitHub Actions updates (grouped).
 
 ## [1.10.0] - 2026-08-06
 

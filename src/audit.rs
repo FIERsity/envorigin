@@ -163,6 +163,27 @@ fn is_expression(value: &str) -> bool {
     value.contains("${{") && value.contains("}}")
 }
 
+/// `KEY=` / `KEY:` with an empty value — usually an accidental stub in CI
+/// configs. Info severity: visible in reports, never fails a pipeline by
+/// default.
+fn check_empty_value(
+    issues: &mut Vec<AuditIssue>,
+    name: &str,
+    value: &str,
+    path: Option<PathBuf>,
+    line: Option<usize>,
+) {
+    if value.is_empty() {
+        issues.push(AuditIssue::new(
+            Severity::Info,
+            "empty-value",
+            format!("{name} is set to an empty string; verify this is intentional"),
+            path,
+            line,
+        ));
+    }
+}
+
 fn check_sensitive_value(
     issues: &mut Vec<AuditIssue>,
     name: &str,
@@ -220,11 +241,18 @@ pub fn audit_project(
                 issues.push(AuditIssue::from(diagnostic));
             }
             if let Some(value) = variable.value.as_deref() {
+                let location = variable
+                    .winner
+                    .as_ref()
+                    .map(|winner| (winner.path.clone(), winner.line));
+                check_empty_value(
+                    &mut issues,
+                    &variable.variable,
+                    value,
+                    location.as_ref().and_then(|(path, _)| path.clone()),
+                    location.as_ref().and_then(|(_, line)| *line),
+                );
                 if is_sensitive(&variable.variable) && !value.is_empty() {
-                    let location = variable
-                        .winner
-                        .as_ref()
-                        .map(|winner| (winner.path.clone(), winner.line));
                     check_sensitive_value(
                         &mut issues,
                         &variable.variable,
@@ -358,6 +386,13 @@ pub fn audit_dotenv_files(
         for entry in parsed.entries {
             names.push((entry.key.clone(), entry.value.clone()));
             if let Some(value) = entry.value.as_deref() {
+                check_empty_value(
+                    &mut issues,
+                    &entry.key,
+                    value,
+                    Some(path.clone()),
+                    Some(entry.line),
+                );
                 if is_sensitive(&entry.key) && !value.is_empty() {
                     check_sensitive_value(
                         &mut issues,
@@ -446,6 +481,19 @@ pub fn audit_workflow(
                         location.and_then(|(_, line)| line),
                     );
                 }
+                if !is_expression(value) {
+                    let location = variable
+                        .winner
+                        .as_ref()
+                        .map(|winner| (winner.path.clone(), winner.line));
+                    check_empty_value(
+                        &mut issues,
+                        &variable.variable,
+                        value,
+                        location.as_ref().and_then(|(path, _)| path.clone()),
+                        location.and_then(|(_, line)| line),
+                    );
+                }
                 if is_credential_url(value) && !is_expression(value) {
                     let location = variable
                         .winner
@@ -459,7 +507,7 @@ pub fn audit_workflow(
                             variable.variable
                         ),
                         location.as_ref().and_then(|(path, _)| path.clone()),
-                        location.and_then(|(_, line)| line),
+                        location.as_ref().and_then(|(_, line)| *line),
                     ));
                 }
                 check_embedded_secret(
@@ -582,14 +630,21 @@ where
         issues.push(AuditIssue::from(diagnostic));
     }
     if let Some(value) = variable.value() {
+        let location = variable.winner_location();
+        check_empty_value(
+            issues,
+            variable.name(),
+            value,
+            location.as_ref().and_then(|(path, _)| path.clone()),
+            location.as_ref().and_then(|(_, line)| *line),
+        );
         if is_sensitive(variable.name()) && !value.is_empty() {
-            let location = variable.winner_location();
             check_sensitive_value(
                 issues,
                 variable.name(),
                 value,
                 location.as_ref().and_then(|(path, _)| path.clone()),
-                location.and_then(|(_, line)| line),
+                location.as_ref().and_then(|(_, line)| *line),
             );
         }
         if is_credential_url(value) {

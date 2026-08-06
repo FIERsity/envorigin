@@ -311,6 +311,9 @@ pub struct ActionsExplainArgs {
     /// Step name, id, or index to inspect. Omit to explain the job-level variable.
     #[arg(long, short = 's')]
     pub step: Option<String>,
+    /// Print the full layer-by-layer resolution trace for the variable.
+    #[arg(long)]
+    pub debug: bool,
     #[command(flatten)]
     pub common: ActionsScanArgs,
 }

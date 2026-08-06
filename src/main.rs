@@ -492,7 +492,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                     Some(spec) => Some(select_step(&report, job, spec)?),
                 };
                 let variable = report.explain(job, step_index, &explain.variable)?;
-                Ok(outcome(match explain.common.format {
+                let mut output = match explain.common.format {
                     OutputFormat::Human => {
                         actions_variable_human(&report, variable, explain.common.show_values)
                     }
@@ -502,7 +502,15 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                     OutputFormat::Json => {
                         actions_variable_json(&report, variable, explain.common.show_values)
                     }
-                }))
+                };
+                if explain.debug && !matches!(explain.common.format, OutputFormat::Json) {
+                    output = format!(
+                        "{}\n{}",
+                        envorigin::actions::actions_debug_trace(variable),
+                        output
+                    );
+                }
+                Ok(outcome(output))
             }
             ActionsCommand::Audit(audit) => {
                 let report = envorigin::actions::analyze_workflow(

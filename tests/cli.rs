@@ -194,6 +194,24 @@ fn actions_explain_shows_full_shadowing_chain() {
 }
 
 #[test]
+fn actions_explain_debug_prints_layer_trace() {
+    let output = actions_command("explain")
+        .args(["SHARED", "-j", "build", "-s", "Configure", "--debug"])
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("resolution trace for SHARED"))
+        .stdout(predicate::str::contains(
+            "workflow env < job env < step env",
+        ))
+        .stdout(predicate::str::contains("#1"))
+        .stdout(predicate::str::contains("#3"))
+        .stdout(predicate::str::contains("shadowed"))
+        .stdout(predicate::str::contains("winner"))
+        .stdout(predicate::str::contains("3 definition(s)"));
+}
+
+#[test]
 fn actions_explain_resolves_env_file() {
     let output = actions_command("explain")
         .args(["FILE_LEVEL", "-j", "deploy", "--show-values"])
@@ -421,13 +439,15 @@ fn audit_command() -> Command {
 fn audit_reports_sensitive_shadowed_and_unused() {
     let output = audit_command().assert().failure();
     output
-        .stdout(predicate::str::contains("2 error(s), 4 warning(s), 3 info"))
+        .stdout(predicate::str::contains("2 error(s), 4 warning(s), 4 info"))
         .stdout(predicate::str::contains("sensitive-value"))
         .stdout(predicate::str::contains("sensitive-placeholder"))
         .stdout(predicate::str::contains("API_TOKEN"))
         .stdout(predicate::str::contains("DB_PASSWORD"))
         .stdout(predicate::str::contains("shadowed-env-line"))
         .stdout(predicate::str::contains("unused-interpolation-variable"))
+        .stdout(predicate::str::contains("empty-value"))
+        .stdout(predicate::str::contains("BROKEN"))
         .stdout(predicate::str::contains("ORPHAN"))
         .stdout(predicate::str::contains("secret-manager-reference"));
 }
