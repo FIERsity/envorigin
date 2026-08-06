@@ -3,6 +3,7 @@ pub mod audit;
 pub mod circleci;
 pub mod cli;
 pub mod compose;
+pub mod detect;
 pub mod diff;
 pub mod docker;
 pub mod dotenv;

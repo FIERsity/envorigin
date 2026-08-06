@@ -1,5 +1,6 @@
 use std::fmt::Write as _;
 use std::io::{ErrorKind, Write};
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser};
@@ -17,6 +18,7 @@ use envorigin::cli::{
     ActionsCommand, CircleciCommand, Cli, Command, CommonArgs, FailLevel, GitlabCommand,
     OutputFormat,
 };
+use envorigin::detect::Target;
 use envorigin::diff::{
     diff_files, diff_human, diff_json, diff_projects, project_diff_human, project_diff_json,
 };
@@ -206,34 +208,16 @@ fn main() -> ExitCode {
             return init_rules();
         }
         Command::Dotenv(args) => {
-            let rules = match load_rules(&args.config) {
-                Ok(rules) => rules,
-                Err(error) => {
-                    eprintln!("error: {error}");
-                    return ExitCode::FAILURE;
-                }
-            };
-            let issues = envorigin::audit::audit_dotenv_files(&args.files, rules.as_ref());
-            return match exit_code_for_audit(&issues, args.fail_on, args.format, &[], |filtered| {
-                let owned: Vec<AuditIssue> =
-                    filtered.iter().map(|issue| (*issue).clone()).collect();
-                envorigin::audit::audit_human(
-                    &format!(
-                        "files: {}",
-                        args.files
-                            .iter()
-                            .map(|p| p.display().to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
-                    &owned,
-                )
-            }) {
+            return match run_dotenv_audit(&args.files, args.format, args.fail_on, &[], &args.config)
+            {
                 Ok(outcome) => {
                     println!("{}", outcome.output);
                     outcome.exit_code
                 }
-                Err(_) => ExitCode::FAILURE,
+                Err(error) => {
+                    eprintln!("error: {error}");
+                    ExitCode::FAILURE
+                }
             };
         }
         _ => {}
@@ -254,70 +238,132 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
     let outcome_with_code = |output: String, exit_code: ExitCode| RunOutcome { output, exit_code };
     let outcome = |output: String| outcome_with_code(output, ExitCode::SUCCESS);
     match cli.command {
-        Command::Scan(args) => {
-            let report = analyze(&options(&args.common))?;
-            if let Some(service_name) = args.service {
-                let service = report
-                    .services
-                    .iter()
-                    .find(|service| service.name == service_name)
-                    .ok_or_else(|| AnalysisError::UnknownService(service_name.clone()))?;
-                Ok(outcome(match args.common.format {
-                    OutputFormat::Human => service_human(&report, service, args.common.show_values),
-                    OutputFormat::Github => {
-                        service_human(&report, service, args.common.show_values)
-                    }
-                    OutputFormat::Json => {
-                        let mut filtered = report.clone();
-                        filtered.services = vec![service.clone()];
-                        project_json(&filtered, args.common.show_values)
-                    }
-                }))
-            } else {
-                Ok(outcome(match args.common.format {
-                    OutputFormat::Human => project_human(&report, args.common.show_values),
-                    OutputFormat::Github => project_human(&report, args.common.show_values),
-                    OutputFormat::Json => project_json(&report, args.common.show_values),
-                }))
+        Command::Scan(args) => match resolve_target(&args.common, args.path.as_deref())? {
+            Some(Target::Compose { file }) => {
+                run_compose_scan(&file, &args.common, args.service.as_deref())
             }
-        }
-        Command::Explain(args) => {
-            let report = analyze(&options(&args.common))?;
-            let service = select_service(&report, args.service.as_deref())?;
-            let explanation = report.explain(service, &args.variable)?;
-            let mut output = match args.common.format {
-                OutputFormat::Human => explanation_human(explanation, args.common.show_values),
-                OutputFormat::Github => explanation_human(explanation, args.common.show_values),
-                OutputFormat::Json => explanation_json(explanation, args.common.show_values),
-            };
-            if args.debug {
-                output = format!(
-                    "{}\n{}",
-                    debug_trace(&report, service, &args.variable),
-                    output
-                );
-            }
-            Ok(outcome(output))
-        }
-        Command::Audit(args) => {
-            let report = analyze(&options(&args.common))?;
-            let rules = load_rules(&args.config)?;
-            let issues = audit_project(&report, rules.as_ref());
-            exit_code_for_audit(
-                &issues,
-                args.fail_on,
+            Some(Target::Actions { file }) => run_actions_scan(
+                &file,
+                args.common.project_directory.as_deref(),
                 args.common.format,
+                args.common.show_values,
+            ),
+            Some(Target::Gitlab { file }) => {
+                run_gitlab_scan(&file, args.common.format, args.common.show_values)
+            }
+            Some(Target::Circleci { file }) => {
+                run_circleci_scan(&file, args.common.format, args.common.show_values)
+            }
+            Some(Target::Dotenv { .. }) => Err(AnalysisError::AutoDetectedNoCommand {
+                kind: "dotenv".to_string(),
+                command: "scan".to_string(),
+                suggestion: "use `envorigin dotenv audit`".to_string(),
+            }),
+            None => run_compose_scan(
+                &args
+                    .common
+                    .compose_file
+                    .clone()
+                    .unwrap_or_else(|| PathBuf::from("compose.yaml")),
+                &args.common,
+                args.service.as_deref(),
+            ),
+        },
+        Command::Explain(args) => match resolve_target(&args.common, args.path.as_deref())? {
+            Some(Target::Compose { file }) => run_compose_explain(
+                &file,
+                &args.common,
+                &args.variable,
+                args.service.as_deref(),
+                args.debug,
+            ),
+            Some(Target::Actions { file }) => run_actions_explain(
+                &file,
+                &args.variable,
+                None,
+                None,
+                args.debug,
+                args.common.format,
+                args.common.show_values,
+            ),
+            Some(Target::Gitlab { file }) => run_gitlab_explain(
+                &file,
+                &args.variable,
+                None,
+                args.common.format,
+                args.common.show_values,
+            ),
+            Some(Target::Circleci { file }) => run_circleci_explain_auto(
+                &file,
+                &args.variable,
+                args.common.format,
+                args.common.show_values,
+            ),
+            Some(Target::Dotenv { .. }) => Err(AnalysisError::AutoDetectedNoCommand {
+                kind: "dotenv".to_string(),
+                command: "explain".to_string(),
+                suggestion: "use `envorigin dotenv audit`".to_string(),
+            }),
+            None => run_compose_explain(
+                &args
+                    .common
+                    .compose_file
+                    .clone()
+                    .unwrap_or_else(|| PathBuf::from("compose.yaml")),
+                &args.common,
+                &args.variable,
+                args.service.as_deref(),
+                args.debug,
+            ),
+        },
+        Command::Audit(args) => match resolve_target(&args.common, args.path.as_deref())? {
+            Some(Target::Compose { file }) => run_compose_audit(
+                &file,
+                &args.common,
+                args.fail_on,
                 &args.ignore,
-                |filtered| {
-                    let owned: Vec<AuditIssue> =
-                        filtered.iter().map(|issue| (*issue).clone()).collect();
-                    audit_human(
-                        &format!("compose: {}", report.compose_file.display()),
-                        &owned,
-                    )
-                },
-            )
-        }
+                &args.config,
+            ),
+            Some(Target::Actions { file }) => run_actions_audit(
+                &file,
+                args.common.format,
+                args.fail_on,
+                &args.ignore,
+                &args.config,
+            ),
+            Some(Target::Gitlab { file }) => run_gitlab_audit(
+                &file,
+                args.common.format,
+                args.fail_on,
+                &args.ignore,
+                &args.config,
+            ),
+            Some(Target::Circleci { file }) => run_circleci_audit(
+                &file,
+                args.common.format,
+                args.fail_on,
+                &args.ignore,
+                &args.config,
+            ),
+            Some(Target::Dotenv { file }) => run_dotenv_audit(
+                std::slice::from_ref(&file),
+                args.common.format,
+                args.fail_on,
+                &args.ignore,
+                &args.config,
+            ),
+            None => run_compose_audit(
+                &args
+                    .common
+                    .compose_file
+                    .clone()
+                    .unwrap_or_else(|| PathBuf::from("compose.yaml")),
+                &args.common,
+                args.fail_on,
+                &args.ignore,
+                &args.config,
+            ),
+        },
         Command::Diff(args) => {
             if let (Some(a), Some(b)) = (&args.project_a, &args.project_b) {
                 let report_a = analyze(&AnalyzeOptions {
@@ -370,99 +416,68 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                 },
             ))
         }
-        Command::Graph(args) => {
-            let report = analyze(&options(&args.common))?;
-            Ok(outcome(project_graph(&report)))
-        }
-        Command::Circleci(args) => match args.command {
-            CircleciCommand::Scan(scan) => {
-                let report = analyze_circleci(&scan.file)?;
-                Ok(outcome(match scan.format {
-                    OutputFormat::Human => circleci_human(&report, scan.show_values),
-                    OutputFormat::Github => circleci_human(&report, scan.show_values),
-                    OutputFormat::Json => circleci_json(&report, scan.show_values),
-                }))
+        Command::Graph(args) => match resolve_target(&args.common, args.path.as_deref())? {
+            Some(Target::Compose { file }) => {
+                let report = analyze(&compose_options(&file, &args.common))?;
+                Ok(outcome(project_graph(&report)))
             }
-            CircleciCommand::Explain(explain) => {
-                let report = analyze_circleci(&explain.common.file)?;
-                let variable = report.explain(&explain.job, &explain.variable)?;
-                Ok(outcome(match explain.common.format {
-                    OutputFormat::Human => {
-                        circleci_variable_human(&report, variable, explain.common.show_values)
-                    }
-                    OutputFormat::Github => {
-                        circleci_variable_human(&report, variable, explain.common.show_values)
-                    }
-                    OutputFormat::Json => {
-                        circleci_variable_json(&report, variable, explain.common.show_values)
-                    }
-                }))
-            }
-            CircleciCommand::Graph(graph) => {
-                let report = analyze_circleci(&graph.file)?;
-                Ok(outcome(circleci_graph(&report)))
-            }
-            CircleciCommand::Audit(audit) => {
-                let report = analyze_circleci(&audit.common.file)?;
-                let rules = load_rules(&audit.config)?;
-                let issues = audit_circleci(&report, rules.as_ref());
-                exit_code_for_audit(
-                    &issues,
-                    audit.fail_on,
-                    audit.common.format,
-                    &audit.ignore,
-                    |filtered| {
-                        let owned: Vec<AuditIssue> =
-                            filtered.iter().map(|issue| (*issue).clone()).collect();
-                        audit_human(&format!("file: {}", report.file.display()), &owned)
-                    },
-                )
+            Some(Target::Actions { file }) => run_actions_graph(&file),
+            Some(Target::Gitlab { file }) => run_gitlab_graph(&file),
+            Some(Target::Circleci { file }) => run_circleci_graph(&file),
+            Some(Target::Dotenv { .. }) => Err(AnalysisError::AutoDetectedNoCommand {
+                kind: "dotenv".to_string(),
+                command: "graph".to_string(),
+                suggestion: "use `envorigin dotenv audit`".to_string(),
+            }),
+            None => {
+                let report = analyze(&compose_options(
+                    &args
+                        .common
+                        .compose_file
+                        .clone()
+                        .unwrap_or_else(|| PathBuf::from("compose.yaml")),
+                    &args.common,
+                ))?;
+                Ok(outcome(project_graph(&report)))
             }
         },
+        Command::Circleci(args) => match args.command {
+            CircleciCommand::Scan(scan) => {
+                run_circleci_scan(&scan.file, scan.format, scan.show_values)
+            }
+            CircleciCommand::Explain(explain) => run_circleci_explain(
+                &explain.common.file,
+                &explain.job,
+                &explain.variable,
+                explain.common.format,
+                explain.common.show_values,
+            ),
+            CircleciCommand::Graph(graph) => run_circleci_graph(&graph.file),
+            CircleciCommand::Audit(audit) => run_circleci_audit(
+                &audit.common.file,
+                audit.common.format,
+                audit.fail_on,
+                &audit.ignore,
+                &audit.config,
+            ),
+        },
         Command::Gitlab(args) => match args.command {
-            GitlabCommand::Scan(scan) => {
-                let report = analyze_gitlab(&scan.file)?;
-                Ok(outcome(match scan.format {
-                    OutputFormat::Human => gitlab_human(&report, scan.show_values),
-                    OutputFormat::Github => gitlab_human(&report, scan.show_values),
-                    OutputFormat::Json => gitlab_json(&report, scan.show_values),
-                }))
-            }
-            GitlabCommand::Explain(explain) => {
-                let report = analyze_gitlab(&explain.common.file)?;
-                let variable = report.explain(explain.job.as_deref(), &explain.variable)?;
-                Ok(outcome(match explain.common.format {
-                    OutputFormat::Human => {
-                        gitlab_variable_human(&report, variable, explain.common.show_values)
-                    }
-                    OutputFormat::Github => {
-                        gitlab_variable_human(&report, variable, explain.common.show_values)
-                    }
-                    OutputFormat::Json => {
-                        gitlab_variable_json(&report, variable, explain.common.show_values)
-                    }
-                }))
-            }
-            GitlabCommand::Graph(graph) => {
-                let report = analyze_gitlab(&graph.file)?;
-                Ok(outcome(gitlab_graph(&report)))
-            }
-            GitlabCommand::Audit(audit) => {
-                let report = analyze_gitlab(&audit.common.file)?;
-                let rules = load_rules(&audit.config)?;
-                let issues = audit_gitlab(&report, rules.as_ref());
-                exit_code_for_audit(
-                    &issues,
-                    audit.fail_on,
-                    audit.common.format,
-                    &audit.ignore,
-                    |filtered| {
-                        let owned: Vec<AuditIssue> =
-                            filtered.iter().map(|issue| (*issue).clone()).collect();
-                        audit_human(&format!("file: {}", report.file.display()), &owned)
-                    },
-                )
-            }
+            GitlabCommand::Scan(scan) => run_gitlab_scan(&scan.file, scan.format, scan.show_values),
+            GitlabCommand::Explain(explain) => run_gitlab_explain(
+                &explain.common.file,
+                &explain.variable,
+                explain.job.as_deref(),
+                explain.common.format,
+                explain.common.show_values,
+            ),
+            GitlabCommand::Graph(graph) => run_gitlab_graph(&graph.file),
+            GitlabCommand::Audit(audit) => run_gitlab_audit(
+                &audit.common.file,
+                audit.common.format,
+                audit.fail_on,
+                &audit.ignore,
+                &audit.config,
+            ),
         },
         // Handled in main() before run() is called.
         Command::Lsp => Ok(outcome(String::new())),
@@ -470,77 +485,29 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
         Command::Dotenv(_) => Ok(outcome(String::new())),
         Command::Completions(_) => Ok(outcome(String::new())),
         Command::Actions(args) => match args.command {
-            ActionsCommand::Scan(scan) => {
-                let report = envorigin::actions::analyze_workflow(
-                    &scan.workflow_file,
-                    scan.project_directory.as_deref(),
-                )?;
-                Ok(outcome(match scan.format {
-                    OutputFormat::Human => actions_human(&report, scan.show_values),
-                    OutputFormat::Github => actions_human(&report, scan.show_values),
-                    OutputFormat::Json => actions_json(&report, scan.show_values),
-                }))
-            }
-            ActionsCommand::Explain(explain) => {
-                let report = envorigin::actions::analyze_workflow(
-                    &explain.common.workflow_file,
-                    explain.common.project_directory.as_deref(),
-                )?;
-                let job = select_job(&report, explain.job.as_deref())?;
-                let step_index = match &explain.step {
-                    None => None,
-                    Some(spec) => Some(select_step(&report, job, spec)?),
-                };
-                let variable = report.explain(job, step_index, &explain.variable)?;
-                let mut output = match explain.common.format {
-                    OutputFormat::Human => {
-                        actions_variable_human(&report, variable, explain.common.show_values)
-                    }
-                    OutputFormat::Github => {
-                        actions_variable_human(&report, variable, explain.common.show_values)
-                    }
-                    OutputFormat::Json => {
-                        actions_variable_json(&report, variable, explain.common.show_values)
-                    }
-                };
-                if explain.debug && !matches!(explain.common.format, OutputFormat::Json) {
-                    output = format!(
-                        "{}\n{}",
-                        envorigin::actions::actions_debug_trace(variable),
-                        output
-                    );
-                }
-                Ok(outcome(output))
-            }
-            ActionsCommand::Audit(audit) => {
-                let report = envorigin::actions::analyze_workflow(
-                    &audit.common.workflow_file,
-                    audit.common.project_directory.as_deref(),
-                )?;
-                let rules = load_rules(&audit.config)?;
-                let issues = audit_workflow(&report, rules.as_ref());
-                exit_code_for_audit(
-                    &issues,
-                    audit.fail_on,
-                    audit.common.format,
-                    &audit.ignore,
-                    |filtered| {
-                        let owned: Vec<AuditIssue> =
-                            filtered.iter().map(|issue| (*issue).clone()).collect();
-                        audit_human(
-                            &format!("workflow: {}", report.workflow_file.display()),
-                            &owned,
-                        )
-                    },
-                )
-            }
-            ActionsCommand::Graph(graph) => {
-                let report = envorigin::actions::analyze_workflow(
-                    &graph.workflow_file,
-                    graph.project_directory.as_deref(),
-                )?;
-                Ok(outcome(actions_graph(&report)))
-            }
+            ActionsCommand::Scan(scan) => run_actions_scan(
+                &scan.workflow_file,
+                scan.project_directory.as_deref(),
+                scan.format,
+                scan.show_values,
+            ),
+            ActionsCommand::Explain(explain) => run_actions_explain(
+                &explain.common.workflow_file,
+                &explain.variable,
+                explain.job.as_deref(),
+                explain.step.as_deref(),
+                explain.debug,
+                explain.common.format,
+                explain.common.show_values,
+            ),
+            ActionsCommand::Audit(audit) => run_actions_audit(
+                &audit.common.workflow_file,
+                audit.common.format,
+                audit.fail_on,
+                &audit.ignore,
+                &audit.config,
+            ),
+            ActionsCommand::Graph(graph) => run_actions_graph(&graph.workflow_file),
         },
     }
 }
@@ -633,14 +600,379 @@ fn select_step(
     }
 }
 
-fn options(args: &CommonArgs) -> AnalyzeOptions {
+fn compose_options(file: &Path, common: &CommonArgs) -> AnalyzeOptions {
     AnalyzeOptions {
-        compose_file: args.compose_file.clone(),
-        env_files: args.env_files.clone(),
-        project_directory: args.project_directory.clone(),
-        host_env_file: args.host_env_file.clone(),
-        docker_check: !args.no_docker_check,
+        compose_file: file.to_path_buf(),
+        env_files: common.env_files.clone(),
+        project_directory: common.project_directory.clone(),
+        host_env_file: common.host_env_file.clone(),
+        docker_check: !common.no_docker_check,
     }
+}
+
+/// Resolve the analysis target for the top-level commands when the user
+/// did not pass `--file`: a positional path wins, then auto-detection in
+/// the project directory, then the explicit compose default (`None`).
+fn resolve_target(
+    common: &CommonArgs,
+    path: Option<&Path>,
+) -> Result<Option<Target>, AnalysisError> {
+    if let Some(path) = path {
+        return envorigin::detect::target_from_path(path)
+            .map(Some)
+            .ok_or_else(|| AnalysisError::NoConfigFound {
+                path: path.to_path_buf(),
+            });
+    }
+    if common.compose_file.is_some() {
+        return Ok(None);
+    }
+    let dir = common
+        .project_directory
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("."));
+    match envorigin::detect::detect_in(&dir) {
+        Some(target) => Ok(Some(target)),
+        None => Err(AnalysisError::NoConfigFound { path: dir }),
+    }
+}
+
+/// Append a hint when values were hidden, so first-time users learn the
+/// flag exists. Machine-readable formats stay untouched.
+fn with_redaction_hint(mut output: String, show_values: bool, format: OutputFormat) -> String {
+    if !show_values && matches!(format, OutputFormat::Human | OutputFormat::Github) {
+        let _ = writeln!(
+            output,
+            "\nvalues are hidden; pass --show-values to reveal them"
+        );
+    }
+    output
+}
+
+fn run_compose_scan(
+    file: &Path,
+    common: &CommonArgs,
+    service: Option<&str>,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze(&compose_options(file, common))?;
+    let output = match service {
+        Some(service_name) => {
+            let service = report
+                .services
+                .iter()
+                .find(|service| service.name == service_name)
+                .ok_or_else(|| AnalysisError::UnknownService(service_name.to_string()))?;
+            match common.format {
+                OutputFormat::Human => service_human(&report, service, common.show_values),
+                OutputFormat::Github => service_human(&report, service, common.show_values),
+                OutputFormat::Json => {
+                    let mut filtered = report.clone();
+                    filtered.services = vec![service.clone()];
+                    project_json(&filtered, common.show_values)
+                }
+            }
+        }
+        None => match common.format {
+            OutputFormat::Human => project_human(&report, common.show_values),
+            OutputFormat::Github => project_human(&report, common.show_values),
+            OutputFormat::Json => project_json(&report, common.show_values),
+        },
+    };
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, common.show_values, common.format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_compose_explain(
+    file: &Path,
+    common: &CommonArgs,
+    variable: &str,
+    service: Option<&str>,
+    debug: bool,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze(&compose_options(file, common))?;
+    let service = select_service(&report, service)?;
+    let explanation = report.explain(service, variable)?;
+    let mut output = match common.format {
+        OutputFormat::Human => explanation_human(explanation, common.show_values),
+        OutputFormat::Github => explanation_human(explanation, common.show_values),
+        OutputFormat::Json => explanation_json(explanation, common.show_values),
+    };
+    if debug {
+        output = format!("{}\n{}", debug_trace(&report, service, variable), output);
+    }
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, common.show_values, common.format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_compose_audit(
+    file: &Path,
+    common: &CommonArgs,
+    fail_on: FailLevel,
+    ignores: &[String],
+    config: &Option<PathBuf>,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze(&compose_options(file, common))?;
+    let rules = load_rules(config)?;
+    let issues = audit_project(&report, rules.as_ref());
+    exit_code_for_audit(&issues, fail_on, common.format, ignores, |filtered| {
+        let owned: Vec<AuditIssue> = filtered.iter().map(|issue| (*issue).clone()).collect();
+        audit_human(&format!("compose: {}", file.display()), &owned)
+    })
+}
+
+fn run_actions_scan(
+    file: &Path,
+    project_directory: Option<&Path>,
+    format: OutputFormat,
+    show_values: bool,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = envorigin::actions::analyze_workflow(file, project_directory)?;
+    let output = match format {
+        OutputFormat::Human => actions_human(&report, show_values),
+        OutputFormat::Github => actions_human(&report, show_values),
+        OutputFormat::Json => actions_json(&report, show_values),
+    };
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, show_values, format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_actions_explain(
+    file: &Path,
+    variable: &str,
+    job: Option<&str>,
+    step: Option<&str>,
+    debug: bool,
+    format: OutputFormat,
+    show_values: bool,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = envorigin::actions::analyze_workflow(file, None)?;
+    let job = select_job(&report, job)?;
+    let step_index = match step {
+        None => None,
+        Some(spec) => Some(select_step(&report, job, spec)?),
+    };
+    let explanation = report.explain(job, step_index, variable)?;
+    let mut output = match format {
+        OutputFormat::Human => actions_variable_human(&report, explanation, show_values),
+        OutputFormat::Github => actions_variable_human(&report, explanation, show_values),
+        OutputFormat::Json => actions_variable_json(&report, explanation, show_values),
+    };
+    if debug && !matches!(format, OutputFormat::Json) {
+        output = format!(
+            "{}\n{}",
+            envorigin::actions::actions_debug_trace(explanation),
+            output
+        );
+    }
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, show_values, format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_actions_audit(
+    file: &Path,
+    format: OutputFormat,
+    fail_on: FailLevel,
+    ignores: &[String],
+    config: &Option<PathBuf>,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = envorigin::actions::analyze_workflow(file, None)?;
+    let rules = load_rules(config)?;
+    let issues = audit_workflow(&report, rules.as_ref());
+    exit_code_for_audit(&issues, fail_on, format, ignores, |filtered| {
+        let owned: Vec<AuditIssue> = filtered.iter().map(|issue| (*issue).clone()).collect();
+        audit_human(
+            &format!("workflow: {}", report.workflow_file.display()),
+            &owned,
+        )
+    })
+}
+
+fn run_actions_graph(file: &Path) -> Result<RunOutcome, AnalysisError> {
+    let report = envorigin::actions::analyze_workflow(file, None)?;
+    Ok(RunOutcome {
+        output: actions_graph(&report),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_gitlab_scan(
+    file: &Path,
+    format: OutputFormat,
+    show_values: bool,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_gitlab(file)?;
+    let output = match format {
+        OutputFormat::Human => gitlab_human(&report, show_values),
+        OutputFormat::Github => gitlab_human(&report, show_values),
+        OutputFormat::Json => gitlab_json(&report, show_values),
+    };
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, show_values, format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_gitlab_explain(
+    file: &Path,
+    variable: &str,
+    job: Option<&str>,
+    format: OutputFormat,
+    show_values: bool,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_gitlab(file)?;
+    let explanation = report.explain(job, variable)?;
+    let output = match format {
+        OutputFormat::Human => gitlab_variable_human(&report, explanation, show_values),
+        OutputFormat::Github => gitlab_variable_human(&report, explanation, show_values),
+        OutputFormat::Json => gitlab_variable_json(&report, explanation, show_values),
+    };
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, show_values, format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_gitlab_audit(
+    file: &Path,
+    format: OutputFormat,
+    fail_on: FailLevel,
+    ignores: &[String],
+    config: &Option<PathBuf>,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_gitlab(file)?;
+    let rules = load_rules(config)?;
+    let issues = audit_gitlab(&report, rules.as_ref());
+    exit_code_for_audit(&issues, fail_on, format, ignores, |filtered| {
+        let owned: Vec<AuditIssue> = filtered.iter().map(|issue| (*issue).clone()).collect();
+        audit_human(&format!("file: {}", report.file.display()), &owned)
+    })
+}
+
+fn run_gitlab_graph(file: &Path) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_gitlab(file)?;
+    Ok(RunOutcome {
+        output: gitlab_graph(&report),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_circleci_scan(
+    file: &Path,
+    format: OutputFormat,
+    show_values: bool,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_circleci(file)?;
+    let output = match format {
+        OutputFormat::Human => circleci_human(&report, show_values),
+        OutputFormat::Github => circleci_human(&report, show_values),
+        OutputFormat::Json => circleci_json(&report, show_values),
+    };
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, show_values, format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_circleci_explain(
+    file: &Path,
+    job: &str,
+    variable: &str,
+    format: OutputFormat,
+    show_values: bool,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_circleci(file)?;
+    let explanation = report.explain(job, variable)?;
+    let output = match format {
+        OutputFormat::Human => circleci_variable_human(&report, explanation, show_values),
+        OutputFormat::Github => circleci_variable_human(&report, explanation, show_values),
+        OutputFormat::Json => circleci_variable_json(&report, explanation, show_values),
+    };
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, show_values, format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+/// Auto-detected CircleCI explain: pick the first job (the top-level
+/// `explain` has no `-j` flag).
+fn run_circleci_explain_auto(
+    file: &Path,
+    variable: &str,
+    format: OutputFormat,
+    show_values: bool,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_circleci(file)?;
+    let job = report
+        .jobs
+        .first()
+        .ok_or_else(|| AnalysisError::UnknownJob("the config defines no jobs".to_string()))?;
+    let explanation = report.explain(&job.id, variable)?;
+    let output = match format {
+        OutputFormat::Human => circleci_variable_human(&report, explanation, show_values),
+        OutputFormat::Github => circleci_variable_human(&report, explanation, show_values),
+        OutputFormat::Json => circleci_variable_json(&report, explanation, show_values),
+    };
+    Ok(RunOutcome {
+        output: with_redaction_hint(output, show_values, format),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_circleci_audit(
+    file: &Path,
+    format: OutputFormat,
+    fail_on: FailLevel,
+    ignores: &[String],
+    config: &Option<PathBuf>,
+) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_circleci(file)?;
+    let rules = load_rules(config)?;
+    let issues = audit_circleci(&report, rules.as_ref());
+    exit_code_for_audit(&issues, fail_on, format, ignores, |filtered| {
+        let owned: Vec<AuditIssue> = filtered.iter().map(|issue| (*issue).clone()).collect();
+        audit_human(&format!("file: {}", report.file.display()), &owned)
+    })
+}
+
+fn run_circleci_graph(file: &Path) -> Result<RunOutcome, AnalysisError> {
+    let report = analyze_circleci(file)?;
+    Ok(RunOutcome {
+        output: circleci_graph(&report),
+        exit_code: ExitCode::SUCCESS,
+    })
+}
+
+fn run_dotenv_audit(
+    files: &[PathBuf],
+    format: OutputFormat,
+    fail_on: FailLevel,
+    ignores: &[String],
+    config: &Option<PathBuf>,
+) -> Result<RunOutcome, AnalysisError> {
+    let rules = load_rules(config)?;
+    let issues = envorigin::audit::audit_dotenv_files(files, rules.as_ref());
+    exit_code_for_audit(&issues, fail_on, format, ignores, |filtered| {
+        let owned: Vec<AuditIssue> = filtered.iter().map(|issue| (*issue).clone()).collect();
+        envorigin::audit::audit_human(
+            &format!(
+                "files: {}",
+                files
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            &owned,
+        )
+    })
 }
 
 fn select_service<'a>(
