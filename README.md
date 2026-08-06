@@ -5,7 +5,7 @@
 [![Downloads](https://img.shields.io/crates/d/envorigin)](https://crates.io/crates/envorigin)
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-blue)](https://github.com/FIERsity/homebrew-envorigin)
 [![docs.rs](https://img.shields.io/docsrs/envorigin)](https://docs.rs/envorigin)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/FIERsity/envorigin/blob/main/LICENSE)
 
 Explain where environment variables actually come from — in Docker Compose
 projects **and** GitHub Actions workflows.
