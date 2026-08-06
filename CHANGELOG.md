@@ -4,6 +4,14 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-08-06
+
+### Added
+
+- Rules engine: `[allowed]` enum whitelists (`disallowed-value` error) and
+  `[max_length]` length caps (`value-too-long` error), alongside
+  required/prefix/forbidden/patterns.
+
 ## [0.8.0] - 2026-08-06
 
 ### Added
