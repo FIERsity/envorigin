@@ -32,6 +32,15 @@ pub struct InterpolationContext<S> {
     next_order: usize,
 }
 
+/// One definition of a variable in the interpolation context, for --debug.
+#[derive(Debug, Clone)]
+pub struct InterpolationDebugEntry<S> {
+    pub value: Option<String>,
+    pub source: S,
+    pub precedence: i32,
+    pub order: usize,
+}
+
 impl<S> Default for InterpolationResult<S> {
     fn default() -> Self {
         Self {
@@ -65,6 +74,27 @@ impl<S: Clone> InterpolationContext<S> {
         };
         self.next_order += 1;
         self.definitions.entry(key).or_default().push(definition);
+    }
+
+    /// All definitions of a variable, lowest precedence first — the
+    /// resolution trace behind `explain --debug`.
+    pub fn debug(&self, key: &str) -> Vec<InterpolationDebugEntry<S>> {
+        self.definitions
+            .get(key)
+            .map(|definitions| {
+                let mut entries: Vec<InterpolationDebugEntry<S>> = definitions
+                    .iter()
+                    .map(|definition| InterpolationDebugEntry {
+                        value: definition.value.clone(),
+                        source: definition.source.clone(),
+                        precedence: definition.precedence,
+                        order: definition.order,
+                    })
+                    .collect();
+                entries.sort_by_key(|entry| (entry.precedence, entry.order));
+                entries
+            })
+            .unwrap_or_default()
     }
 
     pub fn contains(&self, key: &str) -> bool {
