@@ -94,6 +94,130 @@ pub fn diff_files(paths: &[PathBuf]) -> Result<DiffReport, AnalysisError> {
     })
 }
 
+/// One (service, variable) pair compared across two projects.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectDiffEntry {
+    pub service: String,
+    pub variable: String,
+    /// Values in the same order as the projects.
+    pub values: [Option<String>; 2],
+}
+
+/// Compare the final resolved environments of two Compose projects:
+/// same-named variables with different values drift; one-sided variables
+/// are reported as present in only one project.
+pub fn diff_projects(
+    a: &crate::model::ProjectReport,
+    b: &crate::model::ProjectReport,
+) -> Vec<ProjectDiffEntry> {
+    let collect = |report: &crate::model::ProjectReport| -> Vec<(String, String, Option<String>)> {
+        report
+            .services
+            .iter()
+            .flat_map(|service| {
+                service.variables.iter().map(move |variable| {
+                    (
+                        service.name.clone(),
+                        variable.variable.clone(),
+                        variable.value.clone(),
+                    )
+                })
+            })
+            .collect()
+    };
+    let a_entries = collect(a);
+    let b_entries = collect(b);
+    let mut keys: Vec<(String, String)> = a_entries
+        .iter()
+        .map(|(service, variable, _)| (service.clone(), variable.clone()))
+        .chain(
+            b_entries
+                .iter()
+                .map(|(service, variable, _)| (service.clone(), variable.clone())),
+        )
+        .collect();
+    keys.sort();
+    keys.dedup();
+    keys.into_iter()
+        .map(|(service, variable)| ProjectDiffEntry {
+            service: service.clone(),
+            variable: variable.clone(),
+            values: [
+                a_entries
+                    .iter()
+                    .find(|(s, v, _)| s == &service && v == &variable)
+                    .and_then(|(_, _, value)| value.clone()),
+                b_entries
+                    .iter()
+                    .find(|(s, v, _)| s == &service && v == &variable)
+                    .and_then(|(_, _, value)| value.clone()),
+            ],
+        })
+        .collect()
+}
+
+pub fn project_diff_human(
+    a_label: &str,
+    b_label: &str,
+    entries: &[ProjectDiffEntry],
+    show_values: bool,
+) -> String {
+    let mut output = String::new();
+    use std::fmt::Write;
+    let _ = writeln!(
+        output,
+        "EnvOrigin {} — project diff",
+        env!("CARGO_PKG_VERSION")
+    );
+    let _ = writeln!(output, "{a_label} vs {b_label}");
+    let drifts: Vec<&ProjectDiffEntry> = entries
+        .iter()
+        .filter(|entry| {
+            entry.values[0].is_some()
+                && entry.values[1].is_some()
+                && entry.values[0] != entry.values[1]
+        })
+        .collect();
+    let _ = writeln!(output, "\ndrift ({}):", drifts.len());
+    for entry in drifts {
+        let rendered = entry
+            .values
+            .iter()
+            .enumerate()
+            .filter_map(|(index, value)| {
+                value.as_ref().map(|value| {
+                    format!(
+                        "{} = {}",
+                        if index == 0 { a_label } else { b_label },
+                        display_value(&entry.variable, value, show_values)
+                    )
+                })
+            })
+            .collect::<Vec<_>>()
+            .join(" | ");
+        let _ = writeln!(
+            output,
+            "  {}.{}: {}",
+            entry.service, entry.variable, rendered
+        );
+    }
+    for (index, label) in [(0, a_label), (1, b_label)] {
+        let only: Vec<&ProjectDiffEntry> = entries
+            .iter()
+            .filter(|entry| entry.values[index].is_some() && entry.values[1 - index].is_none())
+            .collect();
+        let _ = writeln!(output, "\nonly in {label} ({}):", only.len());
+        for entry in only {
+            let value = entry.values[index]
+                .as_deref()
+                .map(|value| display_value(&entry.variable, value, show_values))
+                .unwrap_or_else(|| "—".to_string());
+            let _ = writeln!(output, "  {}.{} = {}", entry.service, entry.variable, value);
+        }
+    }
+    output
+}
+
 pub fn diff_human(report: &DiffReport, show_values: bool) -> String {
     let mut output = String::new();
     use std::fmt::Write;
