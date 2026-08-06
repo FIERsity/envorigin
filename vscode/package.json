@@ -18,7 +18,8 @@
     "workspaceContains:**/docker-compose.yaml",
     "workspaceContains:**/.github/workflows/*.yml",
     "workspaceContains:**/.gitlab-ci.yml",
-    "workspaceContains:**/.circleci/config.yml"
+    "workspaceContains:**/.circleci/config.yml",
+    "workspaceContains:**/.env"
   ],
   "main": "./out/extension.js",
   "contributes": {

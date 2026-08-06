@@ -25,6 +25,7 @@ export function activate(context: vscode.ExtensionContext): void {
       { pattern: '**/.github/workflows/**/*.yml' },
       { pattern: '**/.gitlab-ci.yml' },
       { pattern: '**/.circleci/config.yml' },
+      { pattern: '**/.env' },
     ],
   };
 

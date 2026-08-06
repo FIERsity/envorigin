@@ -233,6 +233,22 @@ fn analyze_file(
             }
         }
         collect(symbols, diagnostics);
+    } else if file_name == ".env" || file_name.ends_with(".env") {
+        let issues = crate::audit::audit_dotenv_files(&[path.to_path_buf()], None);
+        let mut diagnostics = Vec::new();
+        for issue in &issues {
+            let mut diag = LspDiag {
+                line: issue.line,
+                severity: severity(issue.severity),
+                code: issue.code.clone(),
+                message: issue.message.clone(),
+            };
+            if diag.line.is_none() {
+                diag.line = Some(1);
+            }
+            diagnostics.push(diag);
+        }
+        collect(Vec::new(), diagnostics);
     } else if file_name == ".gitlab-ci.yml" {
         let report = gitlab::analyze_gitlab_with_content(path, content)?;
         let mut symbols = Vec::new();
