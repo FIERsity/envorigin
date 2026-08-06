@@ -4,25 +4,26 @@ Consolidated list of every change we decided on for after the 08-07
 release (1.11.0 + 1.12.0). Ordered by priority. "Post-release" begins
 once the 08:20 release lands and Show HN is up.
 
-## A. Code changes — 1.13.0 (the UX release)
+## A. Code changes — UX release (DONE — pulled into 1.12.0, PR #101)
 
-1. **Unified entry + auto-detection** (highest priority)
-   - `envorigin audit` / `scan` / `explain` with no target detect the
-     project type automatically: compose → actions → gitlab → circleci
-     → dotenv, and print "detected X format" like actionlint does.
-   - Backend-prefixed commands (`envorigin gitlab audit`, …) stay for
-     power users and CI pinning.
-   - The auto-detection logic already exists and is proven in
-     `envorigin-action`'s `target` input — port it into the CLI.
-   - Why: the biggest onboarding friction (5 audit entry points, users
-     must know their project's format). Matches industry convention
-     (gitleaks detect, actionlint).
+All of the following shipped in 1.12.0 before the release (approved to
+merge without CI during the 2026-08-07 GitHub Actions outage; local
+verification: 145 tests, clippy, fmt, real-repo sweep):
 
-2. **`scan` accepts a path/directory argument** — `envorigin scan
-   ./dir` auto-finds the compose file instead of requiring `-f`.
+1. **Unified entry + auto-detection** — top-level `audit`/`scan`/
+   `explain`/`graph` detect the project type (compose → actions →
+   gitlab → circleci → dotenv) and dispatch; detected file named in
+   the output. Backend-prefixed commands stay for power users and CI
+   pinning.
+2. **Positional path argument** — `envorigin scan ./dir` /
+   `envorigin audit compose.yaml`.
+3. **Redaction hint** — human output appends "pass --show-values to
+   reveal them".
+4. **Friendly no-config error** — `no compose or CI config found in
+   <dir>` instead of a raw I/O error.
 
-3. **Redaction hint** — when values are redacted, print a one-line
-   hint at the end: "values hidden; pass --show-values to reveal".
+Remaining post-release: rerun CI on main once GitHub Actions recovers
+(the merged PRs never ran CI).
 
 ## B. Dependency bumps (post-release only)
 
@@ -47,18 +48,12 @@ once the 08:20 release lands and Show HN is up.
    graph (lowest frequency). Each cut requires evidence; each keep
    requires nothing.
 
-## D. Docs & metadata (do now if approved; else 1.13.0)
+## D. Docs & metadata (DONE — shipped in 1.12.0)
 
-7. **README: 5-minute quick start** — right after Install: install →
-   cd project → `envorigin audit` → `envorigin explain` → wire CI,
-   with a scenario table ("my .env change did nothing → explain; I
-   want a CI gate → Action; team rules → init"). README is currently
-   691 lines of reference with no onboarding path; the first example
-   uses an abstract variable `P`.
-
-8. **Cargo.toml metadata alignment** — description currently mentions
-   only Compose + Actions; keywords miss gitlab/circleci/secrets. Fix
-   so 1.12.0 (or 1.13.0) ships correct crates.io metadata.
+7. **README: 5-minute quick start** — done, PR #102 (install → cd →
+   `envorigin audit` → `envorigin explain` → CI, scenario table).
+8. **Cargo.toml metadata** — no change needed: description and
+   keywords already cover all four backends since 1.11.0.
 
 ## E. Post-release actions (not code)
 
