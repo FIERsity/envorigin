@@ -278,7 +278,8 @@ EnvOrigin audits its own workflow on every push: the `Audit own workflow
 
 Audit standalone `.env` files with no Compose context — every entry gets
 the full sensitive-value / placeholder / secret-manager / URL-credential /
-private-key / known-format checks, plus `--fail-on` and `--format`:
+private-key / known-format checks, plus `--fail-on`, `--format`, and
+`envorigin.toml` rules (`--config`):
 
 ```text
 $ envorigin dotenv audit .env
@@ -428,7 +429,7 @@ caching needed.
 cargo test
 ```
 
-108 tests: unit tests for the dotenv parser, the interpolator, Compose
+110 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

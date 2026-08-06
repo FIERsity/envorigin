@@ -339,14 +339,19 @@ pub fn audit_project(
 /// Audit one or more standalone dotenv files (no Compose context needed):
 /// every entry gets the sensitive-value / placeholder / secret-manager /
 /// URL-credential / private-key / known-format checks.
-pub fn audit_dotenv_files(paths: &[std::path::PathBuf]) -> Vec<AuditIssue> {
+pub fn audit_dotenv_files(
+    paths: &[std::path::PathBuf],
+    rules: Option<&crate::rules::Rules>,
+) -> Vec<AuditIssue> {
     let mut issues = Vec::new();
+    let mut names: Vec<(String, Option<String>)> = Vec::new();
     for path in paths {
         let Ok(parsed) = crate::dotenv::parse_dotenv_file(path) else {
             continue;
         };
         issues.extend(parsed.diagnostics.iter().map(AuditIssue::from));
         for entry in parsed.entries {
+            names.push((entry.key.clone(), entry.value.clone()));
             if let Some(value) = entry.value.as_deref() {
                 if is_sensitive(&entry.key) && !value.is_empty() {
                     check_sensitive_value(
@@ -378,6 +383,9 @@ pub fn audit_dotenv_files(paths: &[std::path::PathBuf]) -> Vec<AuditIssue> {
                 );
             }
         }
+    }
+    if let Some(rules) = rules {
+        issues.extend(crate::rules::check_rules(&names, rules));
     }
     deduplicate(issues)
 }

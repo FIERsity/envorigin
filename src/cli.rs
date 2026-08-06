@@ -205,6 +205,9 @@ pub struct DotenvArgs {
     /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
     pub format: OutputFormat,
+    /// Team convention rules file (default: ./envorigin.toml if present).
+    #[arg(long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
