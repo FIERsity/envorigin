@@ -4,6 +4,14 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-08-06
+
+### Added
+
+- Audit flags unused sensitive interpolation variables: a plaintext secret
+  in `.env` gets the full sensitive-value / placeholder /
+  secret-manager-reference checks even when no service consumes it.
+
 ## [1.2.0] - 2026-08-06
 
 ### Added
