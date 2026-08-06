@@ -17,7 +17,7 @@ All notable changes to EnvOrigin are documented here. The format follows
   `[max_length]` keys in `envorigin.toml` that match no variable in the
   audited project are reported (typo in the config would otherwise silently
   disable the rule). Keys also named in `required` are exempt.
-- GitHub Releases carry prebuilt binaries for linux-x86_64, macOS
+- GitHub Releases carry prebuilt binaries for linux x86_64/arm64, macOS
   arm64/x86_64, and Windows x86_64 (built by `release.yml` on every
   published release; re-runnable via `workflow_dispatch`).
 
