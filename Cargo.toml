@@ -8,6 +8,13 @@ repository = "https://github.com/FIERsity/envorigin"
 readme = "README.md"
 keywords = ["docker", "compose", "gitlab", "circleci", "secrets"]
 categories = ["command-line-utilities", "development-tools"]
+# Keep the published crate lean: source, docs, and tests only.
+exclude = [
+    ".github/",
+    "scripts/",
+    "vscode/",
+    ".gitignore",
+]
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
