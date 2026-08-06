@@ -106,20 +106,18 @@ dashed-derived for dependencies. Syntax is guarded by
 `scripts/validate-graphs.sh` against the official mermaid parser
 (mermaid.ink's public API is defunct).
 
-## LSP and the VS Code extension
+## LSP
 
 `envorigin lsp` speaks the Language Server Protocol over stdio (tower-lsp):
 hover (winner + value), go-to-definition (winner source line), and live
 diagnostics after every edit, including unsaved buffers. Files route by
 name: `compose.y{a,}ml`, `.github/workflows/**/*.y{a,}ml`, `.gitlab-ci.yml`,
-`.circleci/config.yml`, `.env`. The extension in `vscode/` is a thin
-languageclient wrapper; its version is kept in lockstep with the CLI by
-`release.sh` (`npm version`).
+`.circleci/config.yml`, `.env`. Any LSP-capable editor can attach.
 
 ## Release pipeline
 
 `scripts/release.sh <version>`: clean-tree check → tests/clippy/fmt →
-bump Cargo.toml + lockfile + VS Code extension versions → tag → GitHub
+bump Cargo.toml + lockfile → tag → GitHub
 release → `cargo publish` → Homebrew formula update (url + sha256) in the
 FIERsity/homebrew-envorigin tap. `release.yml` fires on the release event
 and attaches prebuilt binaries for 5 platforms (linux x86_64/arm64, macOS

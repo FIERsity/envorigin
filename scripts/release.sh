@@ -37,13 +37,7 @@ else
   cargo build --quiet  # sync Cargo.lock
 fi
 
-echo "==> syncing VS Code extension version"
-# npm version updates package.json AND the lockfile's root + packages[""]
-# entries only — a sed over the lockfile would rewrite every dependency's
-# version field.
-(cd vscode && npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null)
-
-git add Cargo.toml Cargo.lock vscode/package.json vscode/package-lock.json
+git add Cargo.toml Cargo.lock
 git commit -m "chore: release v${VERSION}"
 git push
 

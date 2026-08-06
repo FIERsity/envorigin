@@ -23,7 +23,6 @@ Rust 1.86 is pinned in CI (`dtolnay/rust-toolchain@stable`, toolchain 1.86.0).
   - `validate-real-repos.sh` — real-repository regression sweep (network)
   - `validate-graphs.sh` — mermaid syntax validation (npm, first run only)
   - `release.sh` — the release pipeline (maintainers only)
-- `vscode/` — the VS Code extension (version-synced with the CLI)
 - `envorigin-action` — the GitHub Action wrapper lives in a separate
   [repository](https://github.com/FIERsity/envorigin-action)
 
@@ -58,8 +57,6 @@ fixture is the fastest way to a fix.
   `./scripts/release.sh <version>` (gate → bump → tag → GitHub release →
   crates.io → Homebrew formula). `release.yml` attaches the 5-platform
   binaries automatically.
-- The VS Code extension version is bumped by `release.sh` via
-  `npm version` — never edit it by hand.
 - New audit checks, new backends, or analyzer changes should extend
   `scripts/validate-real-repos.sh` — the real-repo sweeps are the best
   bug finder this project has.

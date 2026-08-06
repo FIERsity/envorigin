@@ -56,18 +56,29 @@ All notable changes to EnvOrigin are documented here. The format follows
   uv bench workflow and 155-line glab config graphs parse cleanly.
 - `scripts/check-release-ready.sh` — one-command release gate (clean tree,
   tests, clippy `-D warnings`, fmt, release.sh syntax, actionlint, cargo
-  audit, vsce packaging; `--deep` adds the real-repo and mermaid checks).
+  audit; `--deep` adds the real-repo and mermaid checks).
 - CodeQL SAST (`.github/workflows/codeql.yml`) — Rust analysis on every
   PR, push to main, and weekly; first run: 0 findings.
 - `cargo audit` (RustSec) — 145 dependencies scanned, 0 vulnerabilities;
   wired into the release gate.
+
+### Removed
+
+- VS Code extension client (`vscode/`) — dropped: env config files are
+  low-frequency-edited (live-diagnostic value is low), it was never on
+  the marketplace, and it was the only feature with an npm toolchain
+  and a gate check. The `envorigin lsp` server stays — pure Rust,
+  shares the analyzers, and any LSP-capable editor (Neovim, Emacs,
+  JetBrains, …) can attach. `release.sh` no longer bumps extension
+  versions; the release gate drops the vsce packaging check.
 
 ### Fixed
 
 - VS Code extension version had drifted from the CLI (0.5.1 vs 1.11.0,
   lockfile even older at 0.3.0). Synced to the CLI version and
   `release.sh` now bumps `vscode/package.json` + `package-lock.json`
-  with every release so they can never drift again.
+  with every release so they can never drift again. (Superseded: the
+  extension was removed in this release.)
 - Short-syntax `env_file:` was treated as required, so a missing env
   file (a gitignored `.env` in a fresh clone, mastodon's
   `.env.production`) hard-errored the analysis. `docker compose config`
