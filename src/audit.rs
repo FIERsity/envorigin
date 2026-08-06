@@ -122,10 +122,41 @@ fn check_embedded_secret(
             Severity::Error,
             "private-key-in-value",
             format!("{name} embeds a PEM private key; rotate it and move to a secret reference"),
+            path.clone(),
+            line,
+        ));
+    }
+    if let Some(kind) = known_secret_format(value) {
+        issues.push(AuditIssue::new(
+            Severity::Error,
+            "known-secret-format",
+            format!(
+                "{name} contains what looks like a {kind}; rotate it and move to a secret reference"
+            ),
             path,
             line,
         ));
     }
+}
+
+/// Known credential formats (AWS access keys, GitHub PATs, Stripe keys,
+/// Slack tokens, OpenAI keys) detected by value shape — more reliable than
+/// name matching, since names can be disguised.
+fn known_secret_format(value: &str) -> Option<&'static str> {
+    let patterns: &[(&str, &str)] = &[
+        (r"\bAKIA[0-9A-Z]{16}\b", "AWS access key"),
+        (r"\bghp_[A-Za-z0-9]{36}\b", "GitHub personal access token"),
+        (r"\bsk_live_[0-9a-zA-Z]{24}\b", "Stripe secret key"),
+        (r"\bsk_test_[0-9a-zA-Z]{24}\b", "Stripe test key"),
+        (r"\bxox[baprs]-[0-9a-zA-Z-]{10,}\b", "Slack token"),
+        (r"\bsk-[A-Za-z0-9]{20,}\b", "API key"),
+    ];
+    for (pattern, name) in patterns {
+        if Regex::new(pattern).expect("valid regex").is_match(value) {
+            return Some(name);
+        }
+    }
+    None
 }
 
 fn is_expression(value: &str) -> bool {

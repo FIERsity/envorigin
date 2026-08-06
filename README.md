@@ -204,6 +204,7 @@ express:
 | `secret-manager-reference` | info | a sensitive variable references an external secret (Vault, AWS Secrets Manager/SSM, templating) — its value cannot be resolved statically |
 | `credential-in-url` | error | any variable embeds credentials in a URL (`scheme://user:pass@host`) — the most common leak, usually under names like `DATABASE_URL` |
 | `private-key-in-value` | error | any variable embeds a PEM private key (`-----BEGIN ... PRIVATE KEY-----`) |
+| `known-secret-format` | error | any variable contains a known credential shape (AWS `AKIA…`, GitHub `ghp_…`, Stripe `sk_live_…`, Slack, OpenAI) — detected by value, not name |
 | `unused-interpolation-variable` | info | an interpolation-file variable no service consumes (sensitive ones also get the placeholder/value checks — a plaintext secret is flagged even when unused) |
 | `dotenv-trailing-content`, docker checks, … | as diagnosed | existing analyzer diagnostics |
 
@@ -411,7 +412,7 @@ caching needed.
 cargo test
 ```
 
-106 tests: unit tests for the dotenv parser, the interpolator, Compose
+107 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

@@ -1077,3 +1077,24 @@ fn audit_flags_pem_private_keys_in_values() {
         .stdout(predicate::str::contains("private-key-in-value"))
         .stdout(predicate::str::contains("SSH_KEY"));
 }
+
+#[test]
+fn audit_flags_known_secret_formats() {
+    let dir = tempfile::tempdir().unwrap();
+    let compose = dir.path().join("compose.yaml");
+    std::fs::write(
+        &compose,
+        "services:\n  web:\n    image: nginx\n    environment:\n      AWS_KEY: AKIAIOSFODNN7EXAMPLE\n      GH_TOKEN: ghp_abcdefghijklmnopqrstuvwxyz0123456789\n      SAFE: just-a-normal-value\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--file"])
+        .arg(compose.display().to_string())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("known-secret-format"))
+        .stdout(predicate::str::contains("AWS access key"))
+        .stdout(predicate::str::contains("GitHub personal access token"))
+        .stdout(predicate::str::contains("SAFE").not());
+}
