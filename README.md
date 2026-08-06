@@ -284,7 +284,7 @@ $ envorigin audit
 EnvOrigin 1.12.0 — audit
 compose: /app/compose.yaml
 
-2 error(s), 2 warning(s), 1 info
+2 error(s), 4 warning(s), 4 info
 
 error [sensitive-value]: API_TOKEN is set to a concrete value; verify it is not a real credential (/app/compose.yaml:7)
 warning [shadowed-env-line]: SHADOWED is shadowed by a higher-precedence layer and can be removed (/app/env/web.env:2)
