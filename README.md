@@ -516,9 +516,12 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [x] CircleCI env support (executor < job, parameters, contexts external)
 
 **Phase 3 — ecosystem**
-- [ ] crates.io release (`cargo install envorigin`) + Homebrew tap
-- [ ] rules engine: `envorigin.toml` for team conventions (required vars,
+- [x] crates.io release (`cargo install envorigin`) + Homebrew tap
+- [x] rules engine: `envorigin.toml` for team conventions (required vars,
       name prefixes, value validation)
+- [x] prebuilt release binaries for linux/macOS/Windows (no toolchain needed)
+- [x] GitHub Action wrapper (`FIERsity/envorigin-action`, dogfooded in this
+      repo's own CI)
 - [ ] integration notes for secret managers (Vault, AWS SSM)
 
 ### Shell completions
@@ -536,6 +539,17 @@ envorigin completions fish  > ~/.config/fish/completions/envorigin.fish
 platforms EnvOrigin understands:
 
 **GitHub Actions**
+
+The one-step wrapper (no Rust toolchain; downloads the prebuilt binary,
+auto-detects the config, annotates findings on the PR):
+
+```yaml
+- uses: FIERsity/envorigin-action@v1
+  with:
+    fail-on: warning
+```
+
+Or the CLI directly:
 
 ```yaml
 - name: Install envorigin
