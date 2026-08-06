@@ -47,6 +47,10 @@ for repo in "https://gitlab.com/gitlab-org/cli.git glab" "https://gitlab.com/fdr
     git clone -q --depth 1 "$url" "$WORK/$name"
   fi
 done
+# CircleCI: influxdb's 1000-line config uses ~100 merge keys and executors.
+if [[ ! -d "$WORK/influxdb" ]]; then
+  git clone -q --depth 1 "https://github.com/influxdata/influxdb.git" "$WORK/influxdb"
+fi
 
 failures=0
 
@@ -117,6 +121,17 @@ for case in "${gitlab_cases[@]}"; do
     failures=$((failures + 1))
   fi
 done
+
+echo "==> circleci backend on influxdb (1000 lines, ~100 merge keys)"
+circleci_output="$("$BIN" circleci scan --file "$WORK/influxdb/.circleci/config.yml" 2>&1)"
+if [[ "$circleci_output" != *"job fmt"* || "$circleci_output" != *"CARGO_BUILD_JOBS"* ]]; then
+  echo "FAIL (circleci scan): influxdb"
+  failures=$((failures + 1))
+fi
+if ! "$BIN" circleci audit --file "$WORK/influxdb/.circleci/config.yml" > /dev/null 2>&1; then
+  echo "FAIL (circleci audit): influxdb"
+  failures=$((failures + 1))
+fi
 
 if [[ $failures -gt 0 ]]; then
   echo "FAILED: $failures check(s)"

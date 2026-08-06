@@ -41,6 +41,10 @@ All notable changes to EnvOrigin are documented here. The format follows
   configs that previously errored now scan cleanly.
 - GitLab: top-level `release:` is a job name, not a keyword — it was
   silently dropped from scans; removed from the non-job key list.
+- GitLab: CI/CD component inputs v2 (`$[[ inputs.X ]]`) now surface as
+  external references on the variables that use them.
+- `validate-real-repos.sh` covers the CircleCI backend against
+  influxdata/influxdb's 1000-line config (~100 merge keys).
 
 ## [1.10.0] - 2026-08-06
 

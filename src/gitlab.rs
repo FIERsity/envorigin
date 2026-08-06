@@ -162,6 +162,9 @@ impl GitlabReport {
     }
 }
 
+/// GitLab CI/CD component inputs v2 syntax: `$[[ inputs.X ]]`.
+static V2_INPUT_PATTERN: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+
 /// Top-level keys that are not jobs.
 const NON_JOB_KEYS: &[&str] = &[
     "include",
@@ -370,22 +373,43 @@ fn resolve(
     context: &InterpolationContext<GitlabSourceRef>,
 ) -> Vec<GitlabVariable> {
     let mut variables: BTreeMap<String, GitlabVariable> = BTreeMap::new();
+    let v2_pattern = V2_INPUT_PATTERN.get_or_init(|| {
+        regex::Regex::new(r"\$\[\[\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\]\]").expect("valid regex")
+    });
     for definition in definitions {
         let (value, references, diagnostics) = match definition.raw.as_deref() {
             Some(raw) => {
                 let result = context.interpolate(raw);
-                (
-                    Some(result.value),
-                    result
-                        .references
-                        .into_iter()
-                        .map(|reference| GitlabReference {
-                            expression: reference.variable,
-                            source: reference.source,
-                        })
-                        .collect::<Vec<_>>(),
-                    result.diagnostics,
-                )
+                let mut references: Vec<GitlabReference> = result
+                    .references
+                    .into_iter()
+                    .map(|reference| GitlabReference {
+                        expression: reference.variable,
+                        source: reference.source,
+                    })
+                    .collect();
+                // GitLab CI/CD component inputs (v2 `$[[ inputs.X ]]`
+                // syntax) are not variable definitions, so the
+                // interpolation engine skips them; report them as
+                // external references for visibility.
+                for capture in v2_pattern.captures_iter(raw) {
+                    let expression = capture[1].to_string();
+                    if !references
+                        .iter()
+                        .any(|reference| reference.expression == expression)
+                    {
+                        references.push(GitlabReference {
+                            expression,
+                            source: Some(GitlabSourceRef::new(
+                                GitlabSourceKind::External,
+                                None,
+                                None,
+                                "component input",
+                            )),
+                        });
+                    }
+                }
+                (Some(result.value), references, result.diagnostics)
             }
             None => (None, Vec::new(), Vec::new()),
         };
