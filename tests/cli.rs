@@ -719,6 +719,24 @@ fn gitlab_parses_double_merge_keys() {
 }
 
 #[test]
+fn gitlab_explain_tracks_v2_component_inputs() {
+    // GitLab CI/CD component inputs v2: `$[[ inputs.X ]]` is not a variable
+    // definition; it must surface as an external reference (glab real shape).
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("gitlab")
+        .arg("explain")
+        .arg("TAG_RELEASE_IMAGE_VERSION")
+        .arg("--file")
+        .arg(gitlab_named_fixture("multi-doc.yml"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("references:"))
+        .stdout(predicate::str::contains("inputs.tag_release_image_version"))
+        .stdout(predicate::str::contains("external"));
+}
+
+#[test]
 fn gitlab_explain_tracks_interpolation_references() {
     let output = gitlab_command("explain")
         .args(["BUILD_ID", "-j", "build", "--show-values"])
