@@ -179,6 +179,9 @@ pub struct DiffArgs {
     /// Reveal values of sensitive-looking variables too.
     #[arg(long)]
     pub show_values: bool,
+    /// Exit 1 when drift is found (same key with different values). Useful in CI.
+    #[arg(long)]
+    pub fail_on_drift: bool,
     /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
     pub format: OutputFormat,

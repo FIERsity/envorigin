@@ -533,6 +533,51 @@ fn diff_redacts_sensitive_values_by_default() {
 }
 
 #[test]
+fn diff_json_redacts_sensitive_values() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg("--format")
+        .arg("json")
+        .arg(diff_fixture("local.env"))
+        .arg(diff_fixture("ci.env"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"drift\"").not())
+        .stdout(predicate::str::contains("<redacted sha256:"))
+        .stdout(predicate::str::contains("secret-local").not());
+}
+
+#[test]
+fn diff_fail_on_drift_exits_failure_when_drifted() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg("--fail-on-drift")
+        .arg(diff_fixture("local.env"))
+        .arg(diff_fixture("ci.env"))
+        .assert()
+        .failure();
+}
+
+#[test]
+fn diff_fail_on_drift_succeeds_when_aligned() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = dir.path().join("a.env");
+    let b = dir.path().join("b.env");
+    std::fs::write(&a, "SAME=1\nONLY_A=1\n").unwrap();
+    std::fs::write(&b, "SAME=1\nONLY_B=1\n").unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg("--fail-on-drift")
+        .arg(a.display().to_string())
+        .arg(b.display().to_string())
+        .assert()
+        .success();
+}
+
+#[test]
 fn diff_show_values_reveals_sensitive() {
     let mut command = Command::cargo_bin("envorigin").unwrap();
     command
@@ -1197,4 +1242,67 @@ fn diff_compares_project_final_environments() {
         .stdout(predicate::str::contains("\"db.prod.example.com\""))
         .stdout(predicate::str::contains("only in"))
         .stdout(predicate::str::contains("ONLY_A"));
+}
+
+#[test]
+fn diff_project_json_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = dir.path().join("a");
+    let b = dir.path().join("b");
+    std::fs::create_dir_all(&a).unwrap();
+    std::fs::create_dir_all(&b).unwrap();
+    std::fs::write(
+        a.join("compose.yaml"),
+        "services:\n  web:\n    image: nginx\n    environment:\n      DB_HOST: localhost\n      API_TOKEN: secret-a\n",
+    )
+    .unwrap();
+    std::fs::write(
+        b.join("compose.yaml"),
+        "services:\n  web:\n    image: nginx\n    environment:\n      DB_HOST: db.prod.example.com\n      API_TOKEN: secret-b\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg("--project-a")
+        .arg(a.display().to_string())
+        .arg("--project-b")
+        .arg(b.display().to_string())
+        .arg("--format")
+        .arg("json")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"service\": \"web\""))
+        .stdout(predicate::str::contains("\"variable\": \"DB_HOST\""))
+        .stdout(predicate::str::contains("<redacted sha256:"))
+        .stdout(predicate::str::contains("secret-a").not());
+}
+
+#[test]
+fn diff_project_fail_on_drift_exits_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = dir.path().join("a");
+    let b = dir.path().join("b");
+    std::fs::create_dir_all(&a).unwrap();
+    std::fs::create_dir_all(&b).unwrap();
+    std::fs::write(
+        a.join("compose.yaml"),
+        "services:\n  web:\n    image: nginx\n    environment:\n      DB_HOST: localhost\n",
+    )
+    .unwrap();
+    std::fs::write(
+        b.join("compose.yaml"),
+        "services:\n  web:\n    image: nginx\n    environment:\n      DB_HOST: db.prod.example.com\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg("--project-a")
+        .arg(a.display().to_string())
+        .arg("--project-b")
+        .arg(b.display().to_string())
+        .arg("--fail-on-drift")
+        .assert()
+        .failure();
 }
