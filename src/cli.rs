@@ -35,6 +35,8 @@ pub enum Command {
     Actions(ActionsArgs),
     /// Start the LSP server (for editor integration).
     Lsp,
+    /// Generate an envorigin.toml rules template in the current directory.
+    Init,
     /// Generate a shell completion script.
     Completions(CompletionsArgs),
 }

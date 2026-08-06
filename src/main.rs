@@ -46,6 +46,50 @@ impl Write for IgnoreBrokenPipe {
     }
 }
 
+/// Write an envorigin.toml rules template; never overwrites an existing
+/// file.
+fn init_rules() -> ExitCode {
+    const TEMPLATE: &str = r#"# EnvOrigin team conventions.
+# Remove or fill in what your project needs; all sections are optional.
+
+# Variables that must resolve to a value somewhere in the project.
+# required = ["DATABASE_URL", "LOG_LEVEL"]
+
+# Every user-defined variable must start with this prefix.
+# prefix = "APP_"
+
+# Variables that must not be defined at all.
+# forbidden = ["CI"]
+
+# Value format validation (regex).
+# [patterns]
+# DATABASE_URL = "^postgres(ql)?://"
+
+# Enum whitelists.
+# [allowed]
+# DB_ENGINE = ["postgres", "mysql"]
+
+# Length caps.
+# [max_length]
+# API_KEY = 64
+"#;
+    let path = std::path::Path::new("envorigin.toml");
+    if path.exists() {
+        eprintln!("envorigin.toml already exists; leaving it untouched");
+        return ExitCode::SUCCESS;
+    }
+    match std::fs::write(path, TEMPLATE) {
+        Ok(()) => {
+            println!("wrote envorigin.toml (rules template)");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("error: failed to write envorigin.toml: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 /// Render issues as GitHub Actions workflow commands so problems appear
 /// annotated on the offending file lines in pull requests.
 /// Resolution trace for `explain --debug`: every definition of the
@@ -155,6 +199,9 @@ fn main() -> ExitCode {
                 &mut IgnoreBrokenPipe(std::io::stdout()),
             );
             return ExitCode::SUCCESS;
+        }
+        Command::Init => {
+            return init_rules();
         }
         _ => {}
     }
@@ -344,6 +391,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
         },
         // Handled in main() before run() is called.
         Command::Lsp => Ok(outcome(String::new())),
+        Command::Init => Ok(outcome(String::new())),
         Command::Completions(_) => Ok(outcome(String::new())),
         Command::Actions(args) => match args.command {
             ActionsCommand::Scan(scan) => {
