@@ -475,7 +475,7 @@ references:
 ### `lsp` — editor integration
 
 `envorigin lsp` speaks the Language Server Protocol over stdio and powers the
-[VS Code extension](vscode/):
+[VS Code extension](https://github.com/FIERsity/envorigin/tree/main/vscode):
 
 - **Hover** a variable definition line to see its winning source and value
   (redacted by default).
@@ -488,7 +488,7 @@ Documents are routed to the matching backend by file name (`compose.y*ml`,
 — dotenv files get the live security diagnostics).
 Unsaved buffer edits are analyzed in memory — hover and diagnostics track
 the buffer, while relative references still resolve against the real file
-location. The extension lives in [`vscode/`](vscode/) (TS client, `npm run compile` + `npx @vscode/vsce package` to build, `binaryPath` setting to point at the CLI). Install the built VSIX with `code --install-extension envorigin-vscode-<version>.vsix`.
+location. The extension lives in [`vscode/`](https://github.com/FIERsity/envorigin/tree/main/vscode) (TS client, `npm run compile` + `npx @vscode/vsce package` to build, `binaryPath` setting to point at the CLI). Install the built VSIX with `code --install-extension envorigin-vscode-<version>.vsix`.
 
 ## Design
 
