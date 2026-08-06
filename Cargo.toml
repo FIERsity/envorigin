@@ -2,11 +2,11 @@
 name = "envorigin"
 version = "1.11.0"
 edition = "2021"
-description = "Explain where environment variables come from in Docker Compose and GitHub Actions"
+description = "Explain where environment variables come from — Docker Compose, GitHub Actions, GitLab CI, CircleCI"
 license = "MIT"
 repository = "https://github.com/FIERsity/envorigin"
 readme = "README.md"
-keywords = ["docker", "compose", "dotenv", "cli", "provenance"]
+keywords = ["docker", "compose", "gitlab", "circleci", "secrets"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
