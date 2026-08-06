@@ -105,6 +105,29 @@ fn is_credential_url(value: &str) -> bool {
     pattern.is_match(value)
 }
 
+/// PEM-encoded private keys embedded directly in a value.
+fn is_private_key(value: &str) -> bool {
+    value.contains("-----BEGIN") && value.contains("PRIVATE KEY")
+}
+
+fn check_embedded_secret(
+    issues: &mut Vec<AuditIssue>,
+    name: &str,
+    value: &str,
+    path: Option<PathBuf>,
+    line: Option<usize>,
+) {
+    if is_private_key(value) {
+        issues.push(AuditIssue::new(
+            Severity::Error,
+            "private-key-in-value",
+            format!("{name} embeds a PEM private key; rotate it and move to a secret reference"),
+            path,
+            line,
+        ));
+    }
+}
+
 fn is_expression(value: &str) -> bool {
     value.contains("${{") && value.contains("}}")
 }
@@ -195,6 +218,16 @@ pub fn audit_project(
                         location.and_then(|(_, line)| line),
                     ));
                 }
+                check_embedded_secret(
+                    &mut issues,
+                    &variable.variable,
+                    value,
+                    variable
+                        .winner
+                        .as_ref()
+                        .and_then(|winner| winner.path.clone()),
+                    variable.winner.as_ref().and_then(|winner| winner.line),
+                );
             }
             for candidate in &variable.candidates {
                 if let Some(path) = &candidate.source.path {
@@ -334,6 +367,16 @@ pub fn audit_workflow(
                         location.and_then(|(_, line)| line),
                     ));
                 }
+                check_embedded_secret(
+                    &mut issues,
+                    &variable.variable,
+                    value,
+                    variable
+                        .winner
+                        .as_ref()
+                        .and_then(|winner| winner.path.clone()),
+                    variable.winner.as_ref().and_then(|winner| winner.line),
+                );
             }
             for candidate in &variable.candidates {
                 if candidate.disposition == ActionsDisposition::Shadowed
@@ -452,6 +495,14 @@ where
                 location.and_then(|(_, line)| line),
             ));
         }
+        let location = variable.winner_location();
+        check_embedded_secret(
+            issues,
+            variable.name(),
+            value,
+            location.as_ref().and_then(|(path, _)| path.clone()),
+            location.and_then(|(_, line)| line),
+        );
     }
     for (path, line) in variable.shadowed_lines() {
         issues.push(AuditIssue::new(
