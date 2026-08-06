@@ -46,7 +46,8 @@ Remaining post-release: rerun CI on main once GitHub Actions recovers
 6. **Cut backends/commands by evidence** — usage-stats.sh baselines +
    HN comments + issues decide. Candidates: circleci (lowest reach),
    graph (lowest frequency). Each cut requires evidence; each keep
-   requires nothing.
+   requires nothing. **Not executable yet: 0 users = no data; first
+   data arrives after Show HN + the weekly usage-stats run.**
 
 ## D. Docs & metadata (DONE — shipped in 1.12.0)
 
@@ -61,10 +62,13 @@ Remaining post-release: rerun CI on main once GitHub Actions recovers
    docs/show-hn.md; the 20:30 scheduler task verifies the release
    first and reminds. Author must stay online 1–2h to reply.
 
-10. Adoption tracking: run `scripts/usage-stats.sh` weekly; record
-    baselines (done: 224 crate downloads, 79 binary downloads, 0 real
-    users). First real-user signal = code-search `uses:` hits above
-    our own repos, or crate downloads per version > ~15, or a star.
+10. Adoption tracking: **DONE — automated.** Scheduler task
+    `weekly-usage-stats-envorigin` (id 2e033294, Mondays 09:00
+    Asia/Shanghai, silent-when-idle) runs `scripts/usage-stats.sh` and
+    notifies only on meaningful change. Baseline recorded: 224 crate
+    downloads, 79 binary downloads, 0 real users. First real-user
+    signal = code-search `uses:` hits above our own repos, or crate
+    downloads per version > ~15, or a star.
 
 11. Release cadence: batch features into fewer, larger releases
     (crates.io 429 rate-limit lesson).
