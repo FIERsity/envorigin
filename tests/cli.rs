@@ -1058,3 +1058,22 @@ fn audit_flags_credentials_embedded_in_urls() {
         .stdout(predicate::str::contains("credential-in-url"))
         .stdout(predicate::str::contains("DATABASE_URL"));
 }
+
+#[test]
+fn audit_flags_pem_private_keys_in_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let compose = dir.path().join("compose.yaml");
+    std::fs::write(
+        &compose,
+        "services:\n  web:\n    image: nginx\n    environment:\n      SSH_KEY: \"-----BEGIN RSA PRIVATE KEY-----\\nMIIEoQIBAAKCAQEA...\\n-----END RSA PRIVATE KEY-----\"\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--file"])
+        .arg(compose.display().to_string())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("private-key-in-value"))
+        .stdout(predicate::str::contains("SSH_KEY"));
+}
