@@ -87,6 +87,7 @@ Commands:
   lsp      Start the LSP server (for editor integration)
   completions  Generate a shell completion script
   init      Generate an envorigin.toml rules template
+  dotenv    Audit standalone dotenv files without a Compose context
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -273,6 +274,21 @@ EnvOrigin audits its own workflow on every push: the `Audit own workflow
 (dogfood)` step in `.github/workflows/ci.yml` runs
 `envorigin actions audit --fail-on warning` on the repository's CI file.
 
+### `dotenv audit`
+
+Audit standalone `.env` files with no Compose context — every entry gets
+the full sensitive-value / placeholder / secret-manager / URL-credential /
+private-key / known-format checks, plus `--fail-on` and `--format`:
+
+```text
+$ envorigin dotenv audit .env
+
+2 error(s), 1 warning(s), 0 info
+warning [sensitive-placeholder]: DB_PASSWORD is set to a placeholder-looking value ... (.env:1)
+error [known-secret-format]: AWS_KEY contains what looks like a AWS access key ... (.env:2)
+error [credential-in-url]: URL embeds credentials in a URL ... (.env:3)
+```
+
 ### `diff`
 
 Compare dotenv files for environment drift — the same variable with different
@@ -412,7 +428,7 @@ caching needed.
 cargo test
 ```
 
-107 tests: unit tests for the dotenv parser, the interpolator, Compose
+108 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

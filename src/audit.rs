@@ -336,6 +336,52 @@ pub fn audit_project(
     issues
 }
 
+/// Audit one or more standalone dotenv files (no Compose context needed):
+/// every entry gets the sensitive-value / placeholder / secret-manager /
+/// URL-credential / private-key / known-format checks.
+pub fn audit_dotenv_files(paths: &[std::path::PathBuf]) -> Vec<AuditIssue> {
+    let mut issues = Vec::new();
+    for path in paths {
+        let Ok(parsed) = crate::dotenv::parse_dotenv_file(path) else {
+            continue;
+        };
+        issues.extend(parsed.diagnostics.iter().map(AuditIssue::from));
+        for entry in parsed.entries {
+            if let Some(value) = entry.value.as_deref() {
+                if is_sensitive(&entry.key) && !value.is_empty() {
+                    check_sensitive_value(
+                        &mut issues,
+                        &entry.key,
+                        value,
+                        Some(path.clone()),
+                        Some(entry.line),
+                    );
+                }
+                if is_credential_url(value) {
+                    issues.push(AuditIssue::new(
+                        Severity::Error,
+                        "credential-in-url",
+                        format!(
+                            "{} embeds credentials in a URL; rotate them and move to a secret reference",
+                            entry.key
+                        ),
+                        Some(path.clone()),
+                        Some(entry.line),
+                    ));
+                }
+                check_embedded_secret(
+                    &mut issues,
+                    &entry.key,
+                    value,
+                    Some(path.clone()),
+                    Some(entry.line),
+                );
+            }
+        }
+    }
+    deduplicate(issues)
+}
+
 fn deduplicate(issues: Vec<AuditIssue>) -> Vec<AuditIssue> {
     let mut seen = std::collections::HashSet::new();
     issues

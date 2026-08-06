@@ -203,6 +203,30 @@ fn main() -> ExitCode {
         Command::Init => {
             return init_rules();
         }
+        Command::Dotenv(args) => {
+            let issues = envorigin::audit::audit_dotenv_files(&args.files);
+            return match exit_code_for_audit(&issues, args.fail_on, args.format, &[], |filtered| {
+                let owned: Vec<AuditIssue> =
+                    filtered.iter().map(|issue| (*issue).clone()).collect();
+                envorigin::audit::audit_human(
+                    &format!(
+                        "files: {}",
+                        args.files
+                            .iter()
+                            .map(|p| p.display().to_string())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                    &owned,
+                )
+            }) {
+                Ok(outcome) => {
+                    println!("{}", outcome.output);
+                    outcome.exit_code
+                }
+                Err(_) => ExitCode::FAILURE,
+            };
+        }
         _ => {}
     }
     match run(cli) {
@@ -392,6 +416,7 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
         // Handled in main() before run() is called.
         Command::Lsp => Ok(outcome(String::new())),
         Command::Init => Ok(outcome(String::new())),
+        Command::Dotenv(_) => Ok(outcome(String::new())),
         Command::Completions(_) => Ok(outcome(String::new())),
         Command::Actions(args) => match args.command {
             ActionsCommand::Scan(scan) => {

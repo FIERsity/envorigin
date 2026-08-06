@@ -37,6 +37,8 @@ pub enum Command {
     Lsp,
     /// Generate an envorigin.toml rules template in the current directory.
     Init,
+    /// Audit standalone dotenv files without a Compose context.
+    Dotenv(DotenvArgs),
     /// Generate a shell completion script.
     Completions(CompletionsArgs),
 }
@@ -190,6 +192,19 @@ pub struct AuditArgs {
     /// exempt legacy problems, then remove ignores as they are fixed.
     #[arg(long)]
     pub ignore: Vec<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct DotenvArgs {
+    /// Dotenv files to audit.
+    #[arg(required = true)]
+    pub files: Vec<PathBuf>,
+    /// Fail (exit 1) when issues of this severity or higher are found.
+    #[arg(long, value_enum, default_value_t = FailLevel::Error)]
+    pub fail_on: FailLevel,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
+    pub format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
