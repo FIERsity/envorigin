@@ -753,7 +753,9 @@ fn gitlab_explain_tracks_v2_component_inputs() {
         .assert()
         .success()
         .stdout(predicate::str::contains("references:"))
-        .stdout(predicate::str::contains("inputs.tag_release_image_version"))
+        .stdout(predicate::str::contains(
+            "$[[ inputs.tag_release_image_version ]]",
+        ))
         .stdout(predicate::str::contains("external"));
 }
 
