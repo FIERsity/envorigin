@@ -4,15 +4,10 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [1.12.0] - 2026-08-06
+## [1.12.0] - 2026-08-07
 
 ### Added
 
-- `diff --format json` for project diffs (`--project-a`/`--project-b`) —
-  machine-readable drift reports, sensitive values redacted unless
-  `--show-values`.
-- `diff --fail-on-drift` — exit 1 when any variable carries different values;
-  a CI gate for both dotenv-file and project diff.
 - `unknown-rule-variable` audit warning — `[patterns]`/`[allowed]`/
   `[max_length]` keys in `envorigin.toml` that match no variable in the
   audited project are reported (typo in the config would otherwise silently
@@ -56,6 +51,16 @@ All notable changes to EnvOrigin are documented here. The format follows
   lockfile even older at 0.3.0). Synced to the CLI version and
   `release.sh` now bumps `vscode/package.json` + `package-lock.json`
   with every release so they can never drift again.
+
+## [1.11.0] - 2026-08-06
+
+### Added
+
+- `diff --format json` for project diffs (`--project-a`/`--project-b`) —
+  machine-readable drift reports, sensitive values redacted unless
+  `--show-values`.
+- `diff --fail-on-drift` — exit 1 when any variable carries different values;
+  a CI gate for both dotenv-file and project diff.
 
 ## [1.10.0] - 2026-08-06
 
