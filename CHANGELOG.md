@@ -4,6 +4,14 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-08-06
+
+### Added
+
+- `envorigin dotenv audit <files...>` — full security check matrix on
+  standalone `.env` files with no Compose context, plus `--fail-on` and
+  `--format` (including GitHub annotations).
+
 ## [1.6.0] - 2026-08-06
 
 ### Added
