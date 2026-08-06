@@ -408,12 +408,16 @@ Sensitive-looking variables are redacted unless `--show-values` is passed.
 
 ### `graph`
 
-A mermaid provenance graph — pipe it into [mermaid-cli](https://github.com/mermaid-js/mermaid-cli),
-mermaid.ink, or any mermaid renderer:
+A mermaid provenance graph — pipe it into [mermaid-cli](https://github.com/mermaid-js/mermaid-cli)
+or any mermaid renderer:
 
 ```text
 $ envorigin graph | mmdc -o provenance.svg
 ```
+
+`scripts/validate-graphs.sh` re-validates every backend's graph output
+against the official mermaid parser (no browser needed) — the syntax
+regression guard that keeps the generator honest.
 
 Solid edges point at the winning source, dashed edges at shadowed candidates
 (dashed with a `derived` label at interpolation dependencies). `actions graph`

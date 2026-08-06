@@ -45,6 +45,10 @@ All notable changes to EnvOrigin are documented here. The format follows
   external references on the variables that use them.
 - `validate-real-repos.sh` covers the CircleCI backend against
   influxdata/influxdb's 1000-line config (~100 merge keys).
+- `scripts/validate-graphs.sh` — mermaid syntax regression guard for the
+  graph generator (official mermaid parser, no browser; replaces the
+  defunct mermaid.ink API check). All four backends validated: 226-line
+  uv bench workflow and 155-line glab config graphs parse cleanly.
 
 ## [1.10.0] - 2026-08-06
 
