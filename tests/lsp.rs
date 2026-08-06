@@ -277,6 +277,45 @@ fn lsp_routes_all_four_backends() {
 }
 
 #[test]
+fn lsp_analyzes_multi_document_gitlab_file() {
+    // Multi-document YAML (spec doc + pipeline doc) through the LSP path:
+    // parse must succeed and hover must resolve a global variable. The LSP
+    // routes by filename, so the content is opened as .gitlab-ci.yml.
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/gitlab/multi-doc.yml");
+    let content = std::fs::read_to_string(&fixture).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let gitlab_file = dir.path().join(".gitlab-ci.yml");
+    std::fs::write(&gitlab_file, &content).unwrap();
+    let uri = format!("file://{}", gitlab_file.display());
+
+    let mut client = LspClient::start();
+    client.request(1, "initialize", json!({"capabilities": {}}));
+    client.notify("initialized", json!({}));
+    client.notify(
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {"uri": uri, "languageId": "yaml", "version": 1, "text": content}
+        }),
+    );
+    let _published = client.receive_until("textDocument/publishDiagnostics");
+
+    // GO_VERSION is defined on 0-based line 10 of the pipeline document.
+    let hover = client.request(
+        2,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri}, "position": {"line": 10, "character": 3}}),
+    );
+    assert!(
+        hover["result"]["contents"]["value"]
+            .as_str()
+            .unwrap()
+            .contains("GO_VERSION"),
+        "multi-doc hover resolves: {hover}"
+    );
+    client.shutdown().expect("graceful shutdown");
+}
+
+#[test]
 fn lsp_routes_compose_filename_variants() {
     let dir = tempfile::tempdir().unwrap();
     for name in [

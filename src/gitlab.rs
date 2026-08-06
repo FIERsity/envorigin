@@ -162,6 +162,9 @@ impl GitlabReport {
     }
 }
 
+/// GitLab CI/CD component inputs v2 syntax: `$[[ inputs.X ]]`.
+static V2_INPUT_PATTERN: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+
 /// Top-level keys that are not jobs.
 const NON_JOB_KEYS: &[&str] = &[
     "include",
@@ -176,7 +179,6 @@ const NON_JOB_KEYS: &[&str] = &[
     "after_script",
     "tags",
     "pages",
-    "release",
     "on",
     "permissions",
     "id_tokens",
@@ -257,10 +259,11 @@ fn collect_global_definitions(
         ));
     }
     let content = fs::read_to_string(path)?;
-    let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let raw: Value =
+        crate::yamlx::parse_merged(&content).map_err(|source| AnalysisError::Yaml {
+            path: path.to_path_buf(),
+            source,
+        })?;
     let Some(document) = raw.as_mapping() else {
         return Err(invalid_gitlab(path, "file must be a YAML mapping"));
     };
@@ -370,22 +373,43 @@ fn resolve(
     context: &InterpolationContext<GitlabSourceRef>,
 ) -> Vec<GitlabVariable> {
     let mut variables: BTreeMap<String, GitlabVariable> = BTreeMap::new();
+    let v2_pattern = V2_INPUT_PATTERN.get_or_init(|| {
+        regex::Regex::new(r"\$\[\[\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\]\]").expect("valid regex")
+    });
     for definition in definitions {
         let (value, references, diagnostics) = match definition.raw.as_deref() {
             Some(raw) => {
                 let result = context.interpolate(raw);
-                (
-                    Some(result.value),
-                    result
-                        .references
-                        .into_iter()
-                        .map(|reference| GitlabReference {
-                            expression: reference.variable,
-                            source: reference.source,
-                        })
-                        .collect::<Vec<_>>(),
-                    result.diagnostics,
-                )
+                let mut references: Vec<GitlabReference> = result
+                    .references
+                    .into_iter()
+                    .map(|reference| GitlabReference {
+                        expression: reference.variable,
+                        source: reference.source,
+                    })
+                    .collect();
+                // GitLab CI/CD component inputs (v2 `$[[ inputs.X ]]`
+                // syntax) are not variable definitions, so the
+                // interpolation engine skips them; report them as
+                // external references for visibility.
+                for capture in v2_pattern.captures_iter(raw) {
+                    let expression = capture[1].to_string();
+                    if !references
+                        .iter()
+                        .any(|reference| reference.expression == expression)
+                    {
+                        references.push(GitlabReference {
+                            expression,
+                            source: Some(GitlabSourceRef::new(
+                                GitlabSourceKind::External,
+                                None,
+                                None,
+                                "component input",
+                            )),
+                        });
+                    }
+                }
+                (Some(result.value), references, result.diagnostics)
             }
             None => (None, Vec::new(), Vec::new()),
         };
@@ -439,10 +463,11 @@ pub fn analyze_gitlab_with_content(
         Some(content) => content.to_string(),
         None => fs::read_to_string(path)?,
     };
-    let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let raw: Value =
+        crate::yamlx::parse_merged(&content).map_err(|source| AnalysisError::Yaml {
+            path: path.to_path_buf(),
+            source,
+        })?;
     let Some(document) = raw.as_mapping() else {
         return Err(invalid_gitlab(path, "file must be a YAML mapping"));
     };
@@ -647,7 +672,14 @@ pub fn gitlab_variable_human(
                 .as_ref()
                 .map(source_summary)
                 .unwrap_or_else(|| "unknown source".to_string());
-            let _ = writeln!(output, "  - ${} → {source}", reference.expression);
+            // V2 component-input references (`$[[ inputs.X ]]`) carry a
+            // dotted expression; render them with their own syntax.
+            let rendered = if reference.expression.contains('.') {
+                format!("$[[ {} ]]", reference.expression)
+            } else {
+                format!("${}", reference.expression)
+            };
+            let _ = writeln!(output, "  - {rendered} → {source}");
         }
     }
     if !variable.candidates.is_empty() {

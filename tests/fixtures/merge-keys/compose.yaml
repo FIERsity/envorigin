@@ -1,0 +1,16 @@
+x-common: &common
+  restart: unless-stopped
+  environment:
+    LOG_LEVEL: info
+    API_TOKEN: secret-from-common
+
+services:
+  web:
+    image: nginx
+    <<: *common
+    environment:
+      API_TOKEN: override
+      PORT: "8080"
+  worker:
+    image: busybox
+    <<: *common

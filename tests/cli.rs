@@ -436,6 +436,27 @@ fn audit_command() -> Command {
 }
 
 #[test]
+fn missing_env_file_is_a_warning_not_an_error() {
+    // Mastodon-shaped config: short-syntax env_file pointing at a
+    // gitignored file. docker compose config exits 0 with a "not found"
+    // notice — the audit must mirror that, not hard-error.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("compose.yaml"),
+        "services:\n  web:\n    image: nginx\n    env_file: .env.production\n    environment:\n      PORT: '3000'\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--file"])
+        .arg(dir.path().join("compose.yaml"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("env-file-missing"))
+        .stdout(predicate::str::contains(".env.production"));
+}
+
+#[test]
 fn audit_reports_sensitive_shadowed_and_unused() {
     let output = audit_command().assert().failure();
     output
@@ -651,6 +672,14 @@ fn gitlab_fixture() -> String {
         .to_string()
 }
 
+fn gitlab_named_fixture(name: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/gitlab")
+        .join(name)
+        .display()
+        .to_string()
+}
+
 fn gitlab_command(subcommand: &str) -> Command {
     let mut command = Command::cargo_bin("envorigin").unwrap();
     command
@@ -670,6 +699,64 @@ fn gitlab_scan_lists_globals_jobs_and_includes() {
         .stdout(predicate::str::contains("job build"))
         .stdout(predicate::str::contains("include files:"))
         .stdout(predicate::str::contains("gitlab-include-external"));
+}
+
+#[test]
+fn gitlab_parses_multi_document_yaml() {
+    // Real-world shape (gitlab-org/cli): a `spec:` document followed by the
+    // pipeline document; GitLab merges documents, later keys win.
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("gitlab")
+        .arg("scan")
+        .arg("--file")
+        .arg(gitlab_named_fixture("multi-doc.yml"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("GO_VERSION"))
+        .stdout(predicate::str::contains("TAG_RELEASE_IMAGE_VERSION"))
+        .stdout(predicate::str::contains("job release"))
+        .stdout(predicate::str::contains("GIT_DEPTH"))
+        // the component spec document does not leak into the pipeline
+        .stdout(predicate::str::contains("spec").not());
+}
+
+#[test]
+fn gitlab_parses_double_merge_keys() {
+    // Real-world shape (fdroid/fdroidserver): two `<<` merge keys in one
+    // job. YAML 1.1 allows it; serde_yaml rejects the duplicate key.
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("gitlab")
+        .arg("scan")
+        .arg("--file")
+        .arg(gitlab_named_fixture("double-merge.yml"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("job bandit"))
+        .stdout(predicate::str::contains("PIP_CACHE"))
+        // the merged job keeps its own variables (merge anchors resolved)
+        .stdout(predicate::str::contains("job .python-rules-changes").not());
+}
+
+#[test]
+fn gitlab_explain_tracks_v2_component_inputs() {
+    // GitLab CI/CD component inputs v2: `$[[ inputs.X ]]` is not a variable
+    // definition; it must surface as an external reference (glab real shape).
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("gitlab")
+        .arg("explain")
+        .arg("TAG_RELEASE_IMAGE_VERSION")
+        .arg("--file")
+        .arg(gitlab_named_fixture("multi-doc.yml"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("references:"))
+        .stdout(predicate::str::contains(
+            "$[[ inputs.tag_release_image_version ]]",
+        ))
+        .stdout(predicate::str::contains("external"));
 }
 
 #[test]
@@ -1263,6 +1350,23 @@ fn dotenv_audit_applies_rules() {
 }
 
 #[test]
+fn scan_resolves_yaml_merge_keys() {
+    // `<<: *common` anchors in real compose files must resolve: explicit
+    // keys win over the merge; both services inherit the anchor env.
+    let output = command("scan", "merge-keys")
+        .arg("--show-values")
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("service web"))
+        .stdout(predicate::str::contains("service worker"))
+        .stdout(predicate::str::contains("\"override\""))
+        .stdout(predicate::str::contains("secret-from-common"))
+        .stdout(predicate::str::contains("LOG_LEVEL"))
+        .stdout(predicate::str::contains("PORT"));
+}
+
+#[test]
 fn diff_compares_project_final_environments() {
     let dir = tempfile::tempdir().unwrap();
     let a = dir.path().join("a");
@@ -1357,4 +1461,117 @@ fn diff_project_fail_on_drift_exits_failure() {
         .arg("--fail-on-drift")
         .assert()
         .failure();
+}
+
+// ---- unified entry: auto-detection and positional path ----
+
+fn fixture_dir(sub: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(sub)
+        .display()
+        .to_string()
+}
+
+fn bare_command() -> Command {
+    Command::cargo_bin("envorigin").unwrap()
+}
+
+#[test]
+fn audit_auto_detects_gitlab_config() {
+    bare_command()
+        .current_dir(fixture_dir("gitlab"))
+        .arg("audit")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("file: ./.gitlab-ci.yml"));
+}
+
+#[test]
+fn scan_auto_detects_actions_workflow() {
+    bare_command()
+        .current_dir(fixture_dir("actions"))
+        .arg("scan")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("workflow:"));
+}
+
+#[test]
+fn explain_auto_detects_circleci_config() {
+    bare_command()
+        .current_dir(fixture_dir("circleci"))
+        .args(["explain", "TARGET"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(".circleci/config.yml"));
+}
+
+#[test]
+fn audit_auto_detects_bare_dotenv_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join(".env"), "API_KEY=sk_live_test123\n").unwrap();
+    bare_command()
+        .current_dir(dir.path())
+        .arg("audit")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("files: ./.env"))
+        .stdout(predicate::str::contains("sensitive-value"));
+}
+
+#[test]
+fn scan_auto_detected_dotenv_reports_no_scan_support() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join(".env"), "API_KEY=sk_live_test123\n").unwrap();
+    bare_command()
+        .current_dir(dir.path())
+        .arg("scan")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("use `envorigin dotenv audit`"));
+}
+
+#[test]
+fn audit_accepts_directory_as_positional_path() {
+    bare_command()
+        .arg("audit")
+        .arg("--no-docker-check")
+        .arg(fixture_dir("basic"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("compose:"));
+}
+
+#[test]
+fn scan_accepts_compose_file_as_positional_path() {
+    bare_command()
+        .arg("scan")
+        .arg("--no-docker-check")
+        .arg(fixture("basic"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("service web"));
+}
+
+#[test]
+fn audit_in_empty_directory_errors_helpfully() {
+    let dir = tempfile::tempdir().unwrap();
+    bare_command()
+        .current_dir(dir.path())
+        .arg("audit")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("no compose or CI config found"));
+}
+
+#[test]
+fn scan_hints_at_show_values_flag_when_redacted() {
+    bare_command()
+        .arg("scan")
+        .arg("--no-docker-check")
+        .arg(fixture_dir("basic"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("pass --show-values to reveal"));
 }

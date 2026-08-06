@@ -163,6 +163,10 @@ pub struct GitlabExplainArgs {
 pub struct GraphArgs {
     #[command(flatten)]
     pub common: CommonArgs,
+    /// Project path: a compose/CI config file, or a directory to
+    /// auto-detect in (default: current directory).
+    #[arg(value_name = "PATH")]
+    pub path: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -191,6 +195,10 @@ pub struct DiffArgs {
 pub struct AuditArgs {
     #[command(flatten)]
     pub common: CommonArgs,
+    /// Project path: a compose/CI config file, or a directory to
+    /// auto-detect in (default: current directory).
+    #[arg(value_name = "PATH")]
+    pub path: Option<PathBuf>,
     /// Fail (exit 1) when issues of this severity or higher are found.
     #[arg(long, value_enum, default_value_t = FailLevel::Error)]
     pub fail_on: FailLevel,
@@ -322,6 +330,10 @@ pub struct ActionsExplainArgs {
 pub struct ScanArgs {
     #[command(flatten)]
     pub common: CommonArgs,
+    /// Project path: a compose/CI config file, or a directory to
+    /// auto-detect in (default: current directory).
+    #[arg(value_name = "PATH")]
+    pub path: Option<PathBuf>,
     /// Limit output to a single service.
     #[arg(long)]
     pub service: Option<String>,
@@ -331,6 +343,10 @@ pub struct ScanArgs {
 pub struct ExplainArgs {
     /// Environment variable name to explain.
     pub variable: String,
+    /// Project path: a compose/CI config file, or a directory to
+    /// auto-detect in (default: current directory).
+    #[arg(value_name = "PATH")]
+    pub path: Option<PathBuf>,
     /// Compose service. Optional when the file contains only one service.
     #[arg(long, short = 's')]
     pub service: Option<String>,
@@ -343,9 +359,10 @@ pub struct ExplainArgs {
 
 #[derive(Debug, Args)]
 pub struct CommonArgs {
-    /// Compose file to analyze.
-    #[arg(long = "file", short = 'f', default_value = "compose.yaml")]
-    pub compose_file: PathBuf,
+    /// Compose file to analyze. When omitted, the project type is
+    /// auto-detected (compose → actions → gitlab → circleci → dotenv).
+    #[arg(long = "file", short = 'f')]
+    pub compose_file: Option<PathBuf>,
     /// Compose interpolation env file. Repeat for multiple files; later files win.
     #[arg(long = "env-file")]
     pub env_files: Vec<PathBuf>,

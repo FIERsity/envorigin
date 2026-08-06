@@ -2,12 +2,19 @@
 name = "envorigin"
 version = "1.11.0"
 edition = "2021"
-description = "Explain where environment variables come from in Docker Compose and GitHub Actions"
+description = "Explain where environment variables come from — Docker Compose, GitHub Actions, GitLab CI, CircleCI"
 license = "MIT"
 repository = "https://github.com/FIERsity/envorigin"
 readme = "README.md"
-keywords = ["docker", "compose", "dotenv", "cli", "provenance"]
+keywords = ["docker", "compose", "gitlab", "circleci", "secrets"]
 categories = ["command-line-utilities", "development-tools"]
+# Keep the published crate lean: source, docs, and tests only.
+exclude = [
+    ".github/",
+    "scripts/",
+    "vscode/",
+    ".gitignore",
+]
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
@@ -16,10 +23,10 @@ regex = "1.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
-sha2 = "0.10"
+sha2 = "0.11"
 thiserror = "2.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
-toml = "0.8"
+toml = "1.1"
 tower-lsp = "0.20"
 
 [dev-dependencies]

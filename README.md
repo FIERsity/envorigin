@@ -3,8 +3,9 @@
 [![CI](https://github.com/FIERsity/envorigin/actions/workflows/ci.yml/badge.svg)](https://github.com/FIERsity/envorigin/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/envorigin)](https://crates.io/crates/envorigin)
 [![Downloads](https://img.shields.io/crates/d/envorigin)](https://crates.io/crates/envorigin)
-[![Homebrew](https://img.shields.io/badge/dynamic/json?url=https://formulae.brew.sh/api/formula/envorigin.json&query=$.versions.stable&label=homebrew)](https://github.com/FIERsity/homebrew-envorigin)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Homebrew](https://img.shields.io/badge/homebrew-tap-blue)](https://github.com/FIERsity/homebrew-envorigin)
+[![docs.rs](https://img.shields.io/docsrs/envorigin)](https://docs.rs/envorigin)
+[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/FIERsity/envorigin/blob/main/LICENSE)
 
 Explain where environment variables actually come from — in Docker Compose
 projects **and** GitHub Actions workflows.
@@ -84,16 +85,66 @@ carries prebuilt binaries — no Rust toolchain or Homebrew needed:
 
 ```sh
 # e.g. CI cache or a Docker layer
-curl -sL https://github.com/FIERsity/envorigin/releases/download/v1.11.0/envorigin-v1.11.0-x86_64-unknown-linux-gnu -o envorigin
+curl -sL https://github.com/FIERsity/envorigin/releases/download/v1.12.0/envorigin-v1.12.0-x86_64-unknown-linux-gnu -o envorigin
 chmod +x envorigin
 ```
 
 Requires Rust 1.86+.
 
+## Quick start
+
+```sh
+brew install FIERsity/tap/envorigin      # or: cargo install envorigin
+cd your-project
+envorigin audit                          # ← that's it — the format is auto-detected
+```
+
+EnvOrigin figures out whether your project is Docker Compose, GitHub
+Actions, GitLab CI, CircleCI, or a plain dotenv project — no flags
+needed. Run it on your project right now:
+
+```text
+$ envorigin audit
+
+EnvOrigin 1.12.0 — audit
+compose: /app/compose.yaml
+
+2 error(s), 4 warning(s), 4 info
+
+error [sensitive-value]: API_TOKEN is set to a concrete value; verify it is not a real credential (/app/compose.yaml:7)
+warning [shadowed-env-line]: SHADOWED is shadowed by a higher-precedence layer and can be removed (/app/env/web.env:2)
+```
+
+Then answer "why is it *that* value" for one variable:
+
+```text
+$ envorigin explain DATABASE_URL
+
+DATABASE_URL for service web
+state: present
+value: <redacted sha256:61be8cd3>
+winner: service environment (compose.yaml:9)
+```
+
+Common scenarios:
+
+| I want to… | Run |
+| --- | --- |
+| see every variable and where it comes from | `envorigin scan` |
+| understand one variable | `envorigin explain DATABASE_URL` |
+| get a health report with fixes | `envorigin audit` |
+| gate my CI on the report | `envorigin audit --fail-on error` (or the GitHub Action) |
+| set team conventions | `envorigin init` → edit `envorigin.toml` |
+| compare environments | `envorigin diff --project-a ./dev --project-b ./prod` |
+
+Values are hidden by default — pass `--show-values` when you mean it.
+The backend-prefixed commands (`envorigin gitlab audit`, …) remain for
+when you want to pin the format explicitly.
+
 ## Usage
 
 ```text
-EnvOrigin 0.3.0
+EnvOrigin 1.12.0
 Explain where environment variables come from
 
 Usage: envorigin <COMMAND>
@@ -118,11 +169,12 @@ Options:
   -V, --version  Print version
 ```
 
-Common flags for `scan`/`explain`:
+Common flags for `scan`/`explain`/`audit`/`graph`:
 
 | Flag | Meaning |
 | --- | --- |
-| `-f, --file <PATH>` | Compose file to analyze (default `compose.yaml`) |
+| `-f, --file <PATH>` | Compose file to analyze; omit to auto-detect (compose → actions → gitlab → circleci → dotenv) |
+| `PATH` (positional) | a config file, or a directory to detect in (`envorigin scan ./dir`) |
 | `--env-file <PATH>` | Compose interpolation file; repeatable, later files win |
 | `--project-directory <PATH>` | override the Compose project directory |
 | `--host-env-file <PATH>` | overlay the shell from a dotenv file (reproducible diagnosis) |
@@ -135,7 +187,7 @@ Common flags for `scan`/`explain`:
 ```text
 $ envorigin scan
 
-EnvOrigin 0.3.0
+EnvOrigin 1.12.0
 compose: /app/compose.yaml
 docker verification: verified
 interpolation files: /app/.env
@@ -229,7 +281,9 @@ Flags: `-f/--file` (default `.github/workflows/ci.yml`), `-j/--job`,
 
 ### `audit` / `actions audit` / `gitlab audit` / `circleci audit`
 
-A checkable health report for a whole project. It aggregates every
+A checkable health report for a whole project. `envorigin audit`
+auto-detects the project format; the prefixed variants pin one. It
+aggregates every
 diagnostic the analyzer produces, then adds checks a diagnostic model cannot
 express:
 
@@ -244,15 +298,46 @@ express:
 | `private-key-in-value` | error | any variable embeds a PEM private key (`-----BEGIN ... PRIVATE KEY-----`) |
 | `known-secret-format` | error | any variable contains a known credential shape (AWS `AKIA…`, GitHub `ghp_…`, Stripe `sk_live_…`, Slack, OpenAI) — detected by value, not name |
 | `unused-interpolation-variable` | info | an interpolation-file variable no service consumes (sensitive ones also get the placeholder/value checks — a plaintext secret is flagged even when unused) |
+| `env-file-missing` | info | a short-syntax `env_file:` points at a missing file — a notice, mirroring `docker compose config` (long-syntax `required: true` still errors) |
 | `dotenv-trailing-content`, docker checks, … | as diagnosed | existing analyzer diagnostics |
+
+### Secret managers (Vault, AWS Secrets Manager/SSM)
+
+EnvOrigin never resolves external secrets — it detects that a value *is* an
+external reference and reports it as `secret-manager-reference` (info), so
+pipelines don't treat a placeholder as a real credential:
+
+| Value shape | Detected as |
+| --- | --- |
+| `vault:secret/data/db#password` | HashiCorp Vault |
+| `arn:aws:secretsmanager:region:…:secret:name` | AWS Secrets Manager |
+| `arn:aws:ssm:region:…:parameter/name` / `sm://…` | AWS SSM |
+| `{{ secret … }}` / `{{ secrets.… }}` | secret templating |
+
+The recommended pattern is to keep the reference in the config and store
+the real value out-of-band:
+
+```yaml
+# docker-compose.yml — the reference is intentional, no secret here
+services:
+  web:
+    environment:
+      DB_PASSWORD: vault:secret/data/db#password
+      AWS_CREDENTIALS: arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/credentials
+```
+
+`envorigin audit` reports both as `info [secret-manager-reference]` (no
+pipeline failure by default). Rotate any *concrete* value the audit flags
+as `sensitive-value` into one of these references, then re-run
+`envorigin audit --fail-on error` to confirm.
 
 ```text
 $ envorigin audit
 
-EnvOrigin 0.3.0 — audit
+EnvOrigin 1.12.0 — audit
 compose: /app/compose.yaml
 
-2 error(s), 2 warning(s), 1 info
+2 error(s), 4 warning(s), 4 info
 
 error [sensitive-value]: API_TOKEN is set to a concrete value; verify it is not a real credential (/app/compose.yaml:7)
 warning [shadowed-env-line]: SHADOWED is shadowed by a higher-precedence layer and can be removed (/app/env/web.env:2)
@@ -363,7 +448,7 @@ values across local, CI, and staging:
 ```text
 $ envorigin diff .env ci.env
 
-EnvOrigin 0.3.0 — diff
+EnvOrigin 1.12.0 — diff
 .env vs ci.env
 
 drift (2):
@@ -378,12 +463,16 @@ Sensitive-looking variables are redacted unless `--show-values` is passed.
 
 ### `graph`
 
-A mermaid provenance graph — pipe it into [mermaid-cli](https://github.com/mermaid-js/mermaid-cli),
-mermaid.ink, or any mermaid renderer:
+A mermaid provenance graph — pipe it into [mermaid-cli](https://github.com/mermaid-js/mermaid-cli)
+or any mermaid renderer:
 
 ```text
 $ envorigin graph | mmdc -o provenance.svg
 ```
+
+`scripts/validate-graphs.sh` re-validates every backend's graph output
+against the official mermaid parser (no browser needed) — the syntax
+regression guard that keeps the generator honest.
 
 Solid edges point at the winning source, dashed edges at shadowed candidates
 (dashed with a `derived` label at interpolation dependencies). `actions graph`
@@ -400,6 +489,9 @@ each other in any order (GitLab semantics), so values are resolved in a
 second pass over all definitions. `include: remote` / `include: template`
 are reported as external and not fetched. Statically-known predefined
 variables (`CI_*`, `GITLAB_*`, `RUNNER_*`) are labelled as GitLab predefined.
+Multi-document files (`---` separated, e.g. a `spec:` document followed by
+the pipeline) are merged in order; CI/CD component inputs v2
+(`$[[ inputs.X ]]`) surface as external references.
 
 ```text
 $ envorigin gitlab explain BUILD_ID -j build --show-values
@@ -437,7 +529,7 @@ references:
 ### `lsp` — editor integration
 
 `envorigin lsp` speaks the Language Server Protocol over stdio and powers the
-[VS Code extension](vscode/):
+[VS Code extension](https://github.com/FIERsity/envorigin/tree/main/vscode):
 
 - **Hover** a variable definition line to see its winning source and value
   (redacted by default).
@@ -450,7 +542,7 @@ Documents are routed to the matching backend by file name (`compose.y*ml`,
 — dotenv files get the live security diagnostics).
 Unsaved buffer edits are analyzed in memory — hover and diagnostics track
 the buffer, while relative references still resolve against the real file
-location. The extension lives in [`vscode/`](vscode/) (TS client, `npm run compile` + `npx @vscode/vsce package` to build, `binaryPath` setting to point at the CLI). Install the built VSIX with `code --install-extension envorigin-vscode-<version>.vsix`.
+location. The extension lives in [`vscode/`](https://github.com/FIERsity/envorigin/tree/main/vscode) (TS client, `npm run compile` + `npx @vscode/vsce package` to build, `binaryPath` setting to point at the CLI). Install the built VSIX with `code --install-extension envorigin-vscode-<version>.vsix`.
 
 ## Design
 
@@ -495,9 +587,10 @@ caching needed.
 cargo test
 ```
 
-112 tests: unit tests for the dotenv parser, the interpolator, Compose
+145 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
-resolution, and the audit checks; plus end-to-end CLI tests against
+resolution, the audit checks, and project-type auto-detection; plus
+end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
 that assert redaction, derivation tracking, the full shadowing chain,
 `COMPOSE_ENV_FILES` expansion, `format: raw` semantics,
@@ -537,7 +630,7 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [x] prebuilt release binaries for linux/macOS/Windows (no toolchain needed)
 - [x] GitHub Action wrapper (`FIERsity/envorigin-action`, dogfooded in this
       repo's own CI)
-- [ ] integration notes for secret managers (Vault, AWS SSM)
+- [x] integration notes for secret managers (Vault, AWS SSM)
 
 ### Shell completions
 
@@ -601,6 +694,14 @@ Each audit command targets its own platform's config file by default
 `.circleci/config.yml`) and applies `envorigin.toml` rules automatically.
 
 ## Real-world example
+
+Regression validation against live open-source repositories is one
+command — `scripts/validate-real-repos.sh` clones outline, cargo, uv, and
+two GitLab-hosted repos (glab, fdroid) shallow, sweeps 51 workflow files
+for panics and noise, checks `explain --debug` traces on multi-layer
+workflows, validates the GitLab backend against real multi-document and
+double-merge-key configs, and pins the known-good findings (outline's CI
+embeds test credentials and must keep flagging them).
 
 Running the released binary against [outline](https://github.com/outline/outline)'s
 `docker-compose.yml` (production knowledge-base app) with its `.env`:

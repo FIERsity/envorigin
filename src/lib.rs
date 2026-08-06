@@ -3,6 +3,7 @@ pub mod audit;
 pub mod circleci;
 pub mod cli;
 pub mod compose;
+pub mod detect;
 pub mod diff;
 pub mod docker;
 pub mod dotenv;
@@ -13,6 +14,7 @@ pub mod lsp;
 pub mod model;
 pub mod output;
 pub mod rules;
+pub mod yamlx;
 
 use std::collections::BTreeMap;
 use std::env;

@@ -4,15 +4,20 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.12.0] - 2026-08-07
 
 ### Added
 
-- `diff --format json` for project diffs (`--project-a`/`--project-b`) —
-  machine-readable drift reports, sensitive values redacted unless
-  `--show-values`.
-- `diff --fail-on-drift` — exit 1 when any variable carries different values;
-  a CI gate for both dotenv-file and project diff.
+- Unified entry: `audit`/`scan`/`explain`/`graph` auto-detect the
+  project type (compose → actions → gitlab → circleci → dotenv) — the
+  same command works in any repo with no flags, and the detected file
+  is named in the output. Backend-prefixed commands remain for pinning.
+- Positional path arguments on the top-level commands: a config file
+  or a directory to detect in (`envorigin audit ./dir`,
+  `envorigin scan compose.yaml`). A missing config in the target
+  directory errors helpfully.
+- Redaction hint — when values are hidden, human output ends with
+  "pass --show-values to reveal them".
 - `unknown-rule-variable` audit warning — `[patterns]`/`[allowed]`/
   `[max_length]` keys in `envorigin.toml` that match no variable in the
   audited project are reported (typo in the config would otherwise silently
@@ -25,6 +30,60 @@ All notable changes to EnvOrigin are documented here. The format follows
 - `empty-value` audit info — a variable that resolves to an empty string,
   usually an accidental stub; all five audit entry points.
 - Dependabot — weekly cargo and GitHub Actions updates (grouped).
+- `scripts/validate-real-repos.sh` — one-command regression sweep against
+  live repositories (outline/cargo/uv): 51 workflow audits without
+  panics, no `empty-value` noise, `--debug` trace resolution, and stable
+  known-good findings.
+
+### Fixed
+
+- YAML parsing accepted real-world CI files `serde_yaml` rejects:
+  multi-document files (GitLab merges documents, later keys win — e.g.
+  glab's `spec:` + pipeline file), several `<<` merge keys in one mapping
+  (YAML 1.1 allows it — e.g. fdroid's two-merge jobs), and custom tags
+  like `!reference`. All four backends (Compose, Actions, GitLab,
+  CircleCI) parse through the shared tolerant loader; two real GitLab
+  configs that previously errored now scan cleanly.
+- GitLab: top-level `release:` is a job name, not a keyword — it was
+  silently dropped from scans; removed from the non-job key list.
+- GitLab: CI/CD component inputs v2 (`$[[ inputs.X ]]`) now surface as
+  external references on the variables that use them.
+- `validate-real-repos.sh` covers the CircleCI backend against
+  influxdata/influxdb's 1000-line config (~100 merge keys).
+- `scripts/validate-graphs.sh` — mermaid syntax regression guard for the
+  graph generator (official mermaid parser, no browser; replaces the
+  defunct mermaid.ink API check). All four backends validated: 226-line
+  uv bench workflow and 155-line glab config graphs parse cleanly.
+- `scripts/check-release-ready.sh` — one-command release gate (clean tree,
+  tests, clippy `-D warnings`, fmt, release.sh syntax, actionlint, cargo
+  audit, vsce packaging; `--deep` adds the real-repo and mermaid checks).
+- CodeQL SAST (`.github/workflows/codeql.yml`) — Rust analysis on every
+  PR, push to main, and weekly; first run: 0 findings.
+- `cargo audit` (RustSec) — 145 dependencies scanned, 0 vulnerabilities;
+  wired into the release gate.
+
+### Fixed
+
+- VS Code extension version had drifted from the CLI (0.5.1 vs 1.11.0,
+  lockfile even older at 0.3.0). Synced to the CLI version and
+  `release.sh` now bumps `vscode/package.json` + `package-lock.json`
+  with every release so they can never drift again.
+- Short-syntax `env_file:` was treated as required, so a missing env
+  file (a gitignored `.env` in a fresh clone, mastodon's
+  `.env.production`) hard-errored the analysis. `docker compose config`
+  treats it as a notice and exits 0; the analyzer now mirrors that —
+  missing short-syntax env files are skipped with `info
+  [env-file-missing]` (long syntax with `required: true` still errors).
+
+## [1.11.0] - 2026-08-06
+
+### Added
+
+- `diff --format json` for project diffs (`--project-a`/`--project-b`) —
+  machine-readable drift reports, sensitive values redacted unless
+  `--show-values`.
+- `diff --fail-on-drift` — exit 1 when any variable carries different values;
+  a CI gate for both dotenv-file and project diff.
 
 ## [1.10.0] - 2026-08-06
 
