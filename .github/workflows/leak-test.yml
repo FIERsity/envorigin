@@ -1,0 +1,9 @@
+name: leak test
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      API_TOKEN: sk-leaked-secret-abcdef
+    steps:
+      - run: echo hi
