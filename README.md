@@ -202,6 +202,7 @@ express:
 | `undefined-interpolation-variable` | warning | `$VAR` / `${VAR}` references a variable that resolves to empty |
 | `shadowed-env-line` | warning | a definition loses to a higher-precedence layer with a different value — dead code |
 | `secret-manager-reference` | info | a sensitive variable references an external secret (Vault, AWS Secrets Manager/SSM, templating) — its value cannot be resolved statically |
+| `credential-in-url` | error | any variable embeds credentials in a URL (`scheme://user:pass@host`) — the most common leak, usually under names like `DATABASE_URL` |
 | `unused-interpolation-variable` | info | an interpolation-file variable no service consumes (sensitive ones also get the placeholder/value checks — a plaintext secret is flagged even when unused) |
 | `dotenv-trailing-content`, docker checks, … | as diagnosed | existing analyzer diagnostics |
 
@@ -409,7 +410,7 @@ caching needed.
 cargo test
 ```
 
-104 tests: unit tests for the dotenv parser, the interpolator, Compose
+105 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

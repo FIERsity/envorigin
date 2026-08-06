@@ -1039,3 +1039,22 @@ fn audit_flags_unused_sensitive_interpolation_values() {
         .stdout(predicate::str::contains("LEAKED_TOKEN"))
         .stdout(predicate::str::contains("unused-interpolation-variable"));
 }
+
+#[test]
+fn audit_flags_credentials_embedded_in_urls() {
+    let dir = tempfile::tempdir().unwrap();
+    let compose = dir.path().join("compose.yaml");
+    std::fs::write(
+        &compose,
+        "services:\n  web:\n    image: nginx\n    environment:\n      DATABASE_URL: postgres://admin:s3cret@db.example.com:5432/app\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--file"])
+        .arg(compose.display().to_string())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("credential-in-url"))
+        .stdout(predicate::str::contains("DATABASE_URL"));
+}
