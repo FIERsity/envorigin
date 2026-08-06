@@ -44,6 +44,13 @@ All notable changes to EnvOrigin are documented here. The format follows
   graph generator (official mermaid parser, no browser; replaces the
   defunct mermaid.ink API check). All four backends validated: 226-line
   uv bench workflow and 155-line glab config graphs parse cleanly.
+- `scripts/check-release-ready.sh` — one-command release gate (clean tree,
+  tests, clippy `-D warnings`, fmt, release.sh syntax, actionlint, cargo
+  audit, vsce packaging; `--deep` adds the real-repo and mermaid checks).
+- CodeQL SAST (`.github/workflows/codeql.yml`) — Rust analysis on every
+  PR, push to main, and weekly; first run: 0 findings.
+- `cargo audit` (RustSec) — 145 dependencies scanned, 0 vulnerabilities;
+  wired into the release gate.
 
 ### Fixed
 
