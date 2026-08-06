@@ -1327,6 +1327,23 @@ fn dotenv_audit_applies_rules() {
 }
 
 #[test]
+fn scan_resolves_yaml_merge_keys() {
+    // `<<: *common` anchors in real compose files must resolve: explicit
+    // keys win over the merge; both services inherit the anchor env.
+    let output = command("scan", "merge-keys")
+        .arg("--show-values")
+        .assert()
+        .success();
+    output
+        .stdout(predicate::str::contains("service web"))
+        .stdout(predicate::str::contains("service worker"))
+        .stdout(predicate::str::contains("\"override\""))
+        .stdout(predicate::str::contains("secret-from-common"))
+        .stdout(predicate::str::contains("LOG_LEVEL"))
+        .stdout(predicate::str::contains("PORT"));
+}
+
+#[test]
 fn diff_compares_project_final_environments() {
     let dir = tempfile::tempdir().unwrap();
     let a = dir.path().join("a");
