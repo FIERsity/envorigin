@@ -71,6 +71,22 @@ brew install FIERsity/envorigin/envorigin  # Homebrew
 cargo build --release
 ```
 
+Every [GitHub Release](https://github.com/FIERsity/envorigin/releases) also
+carries prebuilt binaries — no Rust toolchain or Homebrew needed:
+
+| Platform | Asset |
+| --- | --- |
+| Linux x86_64 | `envorigin-<version>-x86_64-unknown-linux-gnu` |
+| macOS arm64 | `envorigin-<version>-aarch64-apple-darwin` |
+| macOS x86_64 | `envorigin-<version>-x86_64-apple-darwin` |
+| Windows x86_64 | `envorigin-<version>-x86_64-pc-windows-msvc.exe` |
+
+```sh
+# e.g. CI cache or a Docker layer
+curl -sL https://github.com/FIERsity/envorigin/releases/download/v1.11.0/envorigin-v1.11.0-x86_64-unknown-linux-gnu -o envorigin
+chmod +x envorigin
+```
+
 Requires Rust 1.86+.
 
 ## Usage
