@@ -28,3 +28,12 @@ jobs:
         run: cargo test --all-targets
       - name: Audit own workflow (dogfood)
         run: cargo run --quiet -- actions audit --file .github/workflows/ci.yml --fail-on warning
+
+  action:
+    name: envorigin-action (dogfood)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Exercise the published wrapper action against this repository:
+      # it downloads the prebuilt binary and audits every workflow file.
+      - uses: FIERsity/envorigin-action@v1
