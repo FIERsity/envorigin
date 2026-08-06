@@ -38,8 +38,10 @@ else
 fi
 
 echo "==> syncing VS Code extension version"
-sed -i '' "s|\"version\": \"[^\"]*\"|\"version\": \"$VERSION\"|" vscode/package.json
-sed -i '' "s|\"version\": \"[^\"]*\"|\"version\": \"$VERSION\"|" vscode/package-lock.json
+# npm version updates package.json AND the lockfile's root + packages[""]
+# entries only — a sed over the lockfile would rewrite every dependency's
+# version field.
+(cd vscode && npm version "$VERSION" --no-git-tag-version --allow-same-version > /dev/null)
 
 git add Cargo.toml Cargo.lock vscode/package.json vscode/package-lock.json
 git commit -m "chore: release v${VERSION}"
