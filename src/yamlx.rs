@@ -260,7 +260,7 @@ mod tests {
         assert_eq!(job.get("image").and_then(Value::as_str), Some("debian"));
         assert_eq!(job.get("script").and_then(Value::as_str), Some("echo hi"));
         // the merge key itself is gone
-        assert!(!job.contains_key(&Value::String("<<".to_string())));
+        assert!(!job.contains_key(Value::String("<<".to_string())));
     }
 
     #[test]
