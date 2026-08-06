@@ -319,6 +319,7 @@ mod tests {
             docker_status: crate::model::DockerStatus::Skipped,
             services: vec![crate::model::ServiceReport {
                 name: "web".to_string(),
+                diagnostics: Vec::new(),
                 variables: vec![crate::model::Explanation {
                     variable: "P".to_string(),
                     service: "web".to_string(),

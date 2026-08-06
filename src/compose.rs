@@ -166,11 +166,19 @@ pub fn analyze_service(
 ) -> Result<ServiceReport, AnalysisError> {
     let compose_directory = compose_file.parent().unwrap_or_else(|| Path::new("."));
     let mut variables: BTreeMap<String, VariableBuilder> = BTreeMap::new();
+    let mut diagnostics: Vec<Diagnostic> = Vec::new();
 
     for spec in &service.env_files {
         let path_result = context.interpolate(&spec.path);
         let path = compose_directory.join(&path_result.value);
         if !path.exists() && !spec.required {
+            // Docker warns (exit 0) for missing short-syntax env files; the
+            // analysis mirrors that instead of failing.
+            diagnostics.push(Diagnostic::new(
+                Severity::Info,
+                "env-file-missing",
+                format!("env file does not exist: {}", path.display()),
+            ));
             continue;
         }
         let parsed = parse_dotenv_file(&path)?;
@@ -289,6 +297,7 @@ pub fn analyze_service(
             .into_iter()
             .map(|(variable, builder)| builder.into_explanation(name, variable))
             .collect(),
+        diagnostics,
     })
 }
 
@@ -306,9 +315,13 @@ fn normalize_env_files(
     let mut result = Vec::new();
     for item in items {
         match item {
+            // Short syntax: missing files are a warning, not an error —
+            // docker compose config exits 0 with a "not found" notice
+            // (verified against Docker). Only the long syntax can opt in
+            // to `required: true`.
             Value::String(path) => result.push(EnvFileSpec {
                 path: path.clone(),
-                required: true,
+                required: false,
                 raw: false,
             }),
             Value::Mapping(mapping) => {

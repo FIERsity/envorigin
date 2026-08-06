@@ -436,6 +436,27 @@ fn audit_command() -> Command {
 }
 
 #[test]
+fn missing_env_file_is_a_warning_not_an_error() {
+    // Mastodon-shaped config: short-syntax env_file pointing at a
+    // gitignored file. docker compose config exits 0 with a "not found"
+    // notice — the audit must mirror that, not hard-error.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("compose.yaml"),
+        "services:\n  web:\n    image: nginx\n    env_file: .env.production\n    environment:\n      PORT: '3000'\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--file"])
+        .arg(dir.path().join("compose.yaml"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("env-file-missing"))
+        .stdout(predicate::str::contains(".env.production"));
+}
+
+#[test]
 fn audit_reports_sensitive_shadowed_and_unused() {
     let output = audit_command().assert().failure();
     output
