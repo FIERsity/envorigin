@@ -381,7 +381,8 @@ references:
   references, shadowed dead-code lines, sensitive values — as you edit.
 
 Documents are routed to the matching backend by file name (`compose.y*ml`,
-`.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`).
+`.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`, `.env`
+— dotenv files get the live security diagnostics).
 Unsaved buffer edits are analyzed in memory — hover and diagnostics track
 the buffer, while relative references still resolve against the real file
 location. The extension lives in [`vscode/`](vscode/) (TS client, `npm run compile` + `npx @vscode/vsce package` to build, `binaryPath` setting to point at the CLI). Install the built VSIX with `code --install-extension envorigin-vscode-<version>.vsix`.
@@ -429,7 +430,7 @@ caching needed.
 cargo test
 ```
 
-110 tests: unit tests for the dotenv parser, the interpolator, Compose
+111 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

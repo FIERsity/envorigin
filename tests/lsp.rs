@@ -319,3 +319,31 @@ fn lsp_routes_compose_filename_variants() {
         client.shutdown().expect("graceful shutdown");
     }
 }
+
+#[test]
+fn lsp_dotenv_files_get_security_diagnostics() {
+    let dir = tempfile::tempdir().unwrap();
+    let env_file = dir.path().join(".env");
+    std::fs::write(&env_file, "AWS_KEY=AKIAIOSFODNN7EXAMPLE\n").unwrap();
+    let uri = format!("file://{}", env_file.display());
+
+    let mut client = LspClient::start();
+    client.request(1, "initialize", json!({"capabilities": {}}));
+    client.notify("initialized", json!({}));
+    client.notify(
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {"uri": uri, "languageId": "dotenv", "version": 1,
+                              "text": std::fs::read_to_string(&env_file).unwrap()}
+        }),
+    );
+    let published = client.receive_until("textDocument/publishDiagnostics");
+    let diagnostics = published["params"]["diagnostics"].as_array().unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "known-secret-format"),
+        "dotenv security diagnostics missing, got {diagnostics:?}"
+    );
+    client.shutdown().expect("graceful shutdown");
+}
