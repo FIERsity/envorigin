@@ -204,7 +204,14 @@ fn main() -> ExitCode {
             return init_rules();
         }
         Command::Dotenv(args) => {
-            let issues = envorigin::audit::audit_dotenv_files(&args.files);
+            let rules = match load_rules(&args.config) {
+                Ok(rules) => rules,
+                Err(error) => {
+                    eprintln!("error: {error}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let issues = envorigin::audit::audit_dotenv_files(&args.files, rules.as_ref());
             return match exit_code_for_audit(&issues, args.fail_on, args.format, &[], |filtered| {
                 let owned: Vec<AuditIssue> =
                     filtered.iter().map(|issue| (*issue).clone()).collect();

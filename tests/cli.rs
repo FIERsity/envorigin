@@ -1130,3 +1130,37 @@ fn dotenv_audit_works_without_compose_context() {
         .success()
         .stdout(predicate::str::contains("0 error(s)"));
 }
+
+#[test]
+fn dotenv_audit_applies_rules() {
+    let dir = tempfile::tempdir().unwrap();
+    let env_file = dir.path().join("r.env");
+    std::fs::write(&env_file, "BAD_NAME=value\n").unwrap();
+    let rules = dir.path().join("rules.toml");
+    std::fs::write(&rules, "prefix = \"APP_\"\n").unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("dotenv")
+        .arg("audit")
+        .arg(env_file.display().to_string())
+        .arg("--config")
+        .arg(rules.display().to_string())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("naming-prefix"))
+        .stdout(predicate::str::contains("APP_"));
+
+    // Invalid rules file fails loudly, not silently.
+    let bad = dir.path().join("bad.toml");
+    std::fs::write(&bad, "not = [valid").unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("dotenv")
+        .arg("audit")
+        .arg(env_file.display().to_string())
+        .arg("--config")
+        .arg(bad.display().to_string())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("invalid rules file"));
+}
