@@ -286,6 +286,9 @@ pub struct ExplainArgs {
     /// Compose service. Optional when the file contains only one service.
     #[arg(long, short = 's')]
     pub service: Option<String>,
+    /// Print the full resolution trace for the variable.
+    #[arg(long)]
+    pub debug: bool,
     #[command(flatten)]
     pub common: CommonArgs,
 }

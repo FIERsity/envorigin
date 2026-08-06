@@ -938,3 +938,26 @@ fn audit_github_format_emits_workflow_commands() {
         .stdout(predicate::str::contains("line=7::API_TOKEN"))
         .stdout(predicate::str::contains("::warning::UNDEFINED_VAR"));
 }
+
+#[test]
+fn explain_debug_prints_resolution_trace() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args([
+            "explain",
+            "S",
+            "-s",
+            "web",
+            "--debug",
+            "--show-values",
+            "--no-docker-check",
+            "--file",
+        ])
+        .arg(fixture("precedence"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("resolution trace for S"))
+        .stdout(predicate::str::contains("precedence"))
+        .stdout(predicate::str::contains("DefaultEnvFile"))
+        .stdout(predicate::str::contains("1 definition(s)"));
+}

@@ -146,7 +146,9 @@ derived from:
 
 `T=${S}` in `env/web.env` interpolated `S` from `.env` — the `derived from`
 block is EnvOrigin's answer to "but *why* is it that value?" for interpolated
-variables.
+variables. `explain --debug` prints the full resolution trace: every
+definition of the variable in the interpolation context with its
+precedence and order.
 
 ### `actions`
 
@@ -401,7 +403,7 @@ caching needed.
 cargo test
 ```
 
-99 tests: unit tests for the dotenv parser, the interpolator, Compose
+100 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

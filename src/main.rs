@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::io::{ErrorKind, Write};
 use std::process::ExitCode;
 
@@ -47,6 +48,67 @@ impl Write for IgnoreBrokenPipe {
 
 /// Render issues as GitHub Actions workflow commands so problems appear
 /// annotated on the offending file lines in pull requests.
+/// Resolution trace for `explain --debug`: every definition of the
+/// variable in the interpolation context, lowest precedence first.
+fn debug_trace(report: &envorigin::model::ProjectReport, service: &str, variable: &str) -> String {
+    let mut output = String::new();
+    let _ = writeln!(
+        output,
+        "resolution trace for {variable} (service {service}):"
+    );
+    let mut context =
+        envorigin::interpolation::InterpolationContext::<envorigin::model::SourceRef>::new();
+    for (key, value) in std::env::vars() {
+        context.define(
+            key,
+            Some(value),
+            envorigin::model::SourceRef::new(
+                envorigin::model::SourceKind::HostEnvironment,
+                None,
+                None,
+                "process environment",
+            ),
+            10_000,
+        );
+    }
+    for (index, path) in report.interpolation_files.iter().enumerate() {
+        if let Ok(parsed) = envorigin::dotenv::parse_dotenv_file(path) {
+            for entry in parsed.entries {
+                context.define(
+                    entry.key.clone(),
+                    entry.value,
+                    envorigin::model::SourceRef::new(
+                        envorigin::model::SourceKind::DefaultEnvFile,
+                        Some(path.clone()),
+                        Some(entry.line),
+                        "interpolation file",
+                    ),
+                    100 + index as i32,
+                );
+            }
+        }
+    }
+    let entries = context.debug(variable);
+    for entry in &entries {
+        let value = entry
+            .value
+            .as_deref()
+            .map(|value| format!("{value:?}"))
+            .unwrap_or_else(|| "—".to_string());
+        let _ = writeln!(
+            output,
+            "  precedence {:>5} order {:>3}  {:?}  {value}",
+            entry.precedence, entry.order, entry.source.kind
+        );
+    }
+    let _ = writeln!(
+        output,
+        "  {} definition(s) in the interpolation context",
+        entries.len()
+    );
+    output
+}
+
 fn github_annotations(issues: &[AuditIssue]) -> String {
     issues
         .iter()
@@ -145,11 +207,19 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             let report = analyze(&options(&args.common))?;
             let service = select_service(&report, args.service.as_deref())?;
             let explanation = report.explain(service, &args.variable)?;
-            Ok(outcome(match args.common.format {
+            let mut output = match args.common.format {
                 OutputFormat::Human => explanation_human(explanation, args.common.show_values),
                 OutputFormat::Github => explanation_human(explanation, args.common.show_values),
                 OutputFormat::Json => explanation_json(explanation, args.common.show_values),
-            }))
+            };
+            if args.debug {
+                output = format!(
+                    "{}\n{}",
+                    debug_trace(&report, service, &args.variable),
+                    output
+                );
+            }
+            Ok(outcome(output))
         }
         Command::Audit(args) => {
             let report = analyze(&options(&args.common))?;
