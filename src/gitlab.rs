@@ -176,7 +176,6 @@ const NON_JOB_KEYS: &[&str] = &[
     "after_script",
     "tags",
     "pages",
-    "release",
     "on",
     "permissions",
     "id_tokens",
@@ -257,10 +256,11 @@ fn collect_global_definitions(
         ));
     }
     let content = fs::read_to_string(path)?;
-    let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let raw: Value =
+        crate::yamlx::parse_merged(&content).map_err(|source| AnalysisError::Yaml {
+            path: path.to_path_buf(),
+            source,
+        })?;
     let Some(document) = raw.as_mapping() else {
         return Err(invalid_gitlab(path, "file must be a YAML mapping"));
     };
@@ -439,10 +439,11 @@ pub fn analyze_gitlab_with_content(
         Some(content) => content.to_string(),
         None => fs::read_to_string(path)?,
     };
-    let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let raw: Value =
+        crate::yamlx::parse_merged(&content).map_err(|source| AnalysisError::Yaml {
+            path: path.to_path_buf(),
+            source,
+        })?;
     let Some(document) = raw.as_mapping() else {
         return Err(invalid_gitlab(path, "file must be a YAML mapping"));
     };

@@ -274,10 +274,11 @@ pub fn analyze_workflow_with_content(
         Some(content) => content.to_string(),
         None => fs::read_to_string(path)?,
     };
-    let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let raw: Value =
+        crate::yamlx::parse_merged(&content).map_err(|source| AnalysisError::Yaml {
+            path: path.to_path_buf(),
+            source,
+        })?;
     let document = raw
         .as_mapping()
         .ok_or_else(|| invalid_workflow(path, "workflow file must be a YAML mapping"))?;

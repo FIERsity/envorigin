@@ -287,10 +287,11 @@ pub fn analyze_circleci_with_content(
         Some(content) => content.to_string(),
         None => fs::read_to_string(path)?,
     };
-    let raw: Value = serde_yaml::from_str(&content).map_err(|source| AnalysisError::Yaml {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let raw: Value =
+        crate::yamlx::parse_merged(&content).map_err(|source| AnalysisError::Yaml {
+            path: path.to_path_buf(),
+            source,
+        })?;
     let Some(document) = raw.as_mapping() else {
         return Err(invalid_circleci(path, "file must be a YAML mapping"));
     };

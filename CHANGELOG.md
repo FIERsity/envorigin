@@ -30,6 +30,18 @@ All notable changes to EnvOrigin are documented here. The format follows
   panics, no `empty-value` noise, `--debug` trace resolution, and stable
   known-good findings.
 
+### Fixed
+
+- YAML parsing accepted real-world CI files `serde_yaml` rejects:
+  multi-document files (GitLab merges documents, later keys win — e.g.
+  glab's `spec:` + pipeline file), several `<<` merge keys in one mapping
+  (YAML 1.1 allows it — e.g. fdroid's two-merge jobs), and custom tags
+  like `!reference`. All four backends (Compose, Actions, GitLab,
+  CircleCI) parse through the shared tolerant loader; two real GitLab
+  configs that previously errored now scan cleanly.
+- GitLab: top-level `release:` is a job name, not a keyword — it was
+  silently dropped from scans; removed from the non-job key list.
+
 ## [1.10.0] - 2026-08-06
 
 ### Added

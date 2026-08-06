@@ -1,0 +1,17 @@
+# Two `<<` merge keys in one job (real-world shape from fdroid/fdroidserver).
+# YAML 1.1 allows it; serde_yaml rejects the duplicate key outright.
+.python-rules-changes: &python-rules-changes
+  rules:
+    - changes: ["**/*.py"]
+.apt-template: &apt-template
+  image: debian:trixie-slim
+  before_script:
+    - apt-get update
+
+bandit:
+  <<: *python-rules-changes
+  <<: *apt-template
+  script:
+    - bandit -r .
+  variables:
+    PIP_CACHE: /tmp/pip

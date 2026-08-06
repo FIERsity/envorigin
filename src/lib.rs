@@ -13,6 +13,7 @@ pub mod lsp;
 pub mod model;
 pub mod output;
 pub mod rules;
+pub mod yamlx;
 
 use std::collections::BTreeMap;
 use std::env;
