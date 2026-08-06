@@ -33,15 +33,15 @@ Remaining post-release: rerun CI on main once GitHub Actions recovers
 
 ## C. Feature cuts — data-driven, after Show HN feedback (2–4 weeks)
 
-5. **Cut the VS Code extension client** (`vscode/` + npm deps + version
-   sync + vsce check in release.sh/check-release-ready.sh) — keep the
-   `envorigin lsp` server (pure Rust, shares the analyzers, zero
-   maintenance; neovim/emacs still get editor integration via LSP).
+5. **Cut the VS Code extension client** — DONE (pulled into 1.12.0,
+   alongside the UX release). `vscode/` + npm deps + version sync +
+   vsce check removed from release.sh/check-release-ready.sh;
+   `envorigin lsp` server kept (pure Rust, any LSP editor can attach).
    Rationale: env config files are low-frequency-edited (LSP value
-   density is low), the extension is not on the marketplace (invisible
-   to users), and it's the only feature with external deps (npm) and a
-   gate check. Cancelled if Show HN / issues show strong demand for a
-   VS Code extension.
+   density is low), the extension was never on the marketplace
+   (invisible to users), and it was the only feature with external
+   deps (npm) and a gate check. Revisit if Show HN / issues show
+   strong demand for a VS Code extension.
 
 6. **Cut backends/commands by evidence** — usage-stats.sh baselines +
    HN comments + issues decide. Candidates: circleci (lowest reach),
