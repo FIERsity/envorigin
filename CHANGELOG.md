@@ -4,6 +4,13 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-08-06
+
+### Added
+
+- LSP and the VS Code extension cover dotenv files: `.env` gets live
+  security diagnostics in the editor (the same checks as `dotenv audit`).
+
 ## [1.8.0] - 2026-08-06
 
 ### Added
