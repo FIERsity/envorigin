@@ -332,6 +332,11 @@ pub fn audit_project(
             .map(|variable| (variable.variable.clone(), variable.value.clone()))
             .collect();
         issues.extend(crate::rules::check_rules(&variables, rules));
+        issues.extend(crate::rules::unknown_rule_issues(
+            rules,
+            &variables,
+            "the project",
+        ));
     }
     issues
 }
@@ -386,6 +391,11 @@ pub fn audit_dotenv_files(
     }
     if let Some(rules) = rules {
         issues.extend(crate::rules::check_rules(&names, rules));
+        issues.extend(crate::rules::unknown_rule_issues(
+            rules,
+            &names,
+            "these files",
+        ));
     }
     deduplicate(issues)
 }
@@ -495,6 +505,11 @@ pub fn audit_workflow(
         variables.sort();
         variables.dedup();
         issues.extend(crate::rules::check_rules(&variables, rules));
+        issues.extend(crate::rules::unknown_rule_issues(
+            rules,
+            &variables,
+            "the workflow",
+        ));
     }
     deduplicate(issues)
 }
@@ -519,6 +534,11 @@ pub fn audit_gitlab(
         let variables: Vec<(String, Option<String>)> =
             seen.iter().map(|name| (name.clone(), None)).collect();
         issues.extend(crate::rules::check_rules(&variables, rules));
+        issues.extend(crate::rules::unknown_rule_issues(
+            rules,
+            &variables,
+            "the GitLab configuration",
+        ));
     }
     deduplicate(issues)
 }
@@ -539,6 +559,11 @@ pub fn audit_circleci(
         let variables: Vec<(String, Option<String>)> =
             seen.iter().map(|name| (name.clone(), None)).collect();
         issues.extend(crate::rules::check_rules(&variables, rules));
+        issues.extend(crate::rules::unknown_rule_issues(
+            rules,
+            &variables,
+            "the CircleCI configuration",
+        ));
     }
     deduplicate(issues)
 }

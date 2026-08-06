@@ -876,6 +876,38 @@ fn circleci_graph_renders_jobs_and_sources() {
 }
 
 #[test]
+fn audit_reports_rules_that_name_unknown_variables() {
+    // A typo in envorigin.toml ([patterns] key differs from the real
+    // variable) silently disables the rule; the audit must surface it.
+    let dir = tempfile::tempdir().unwrap();
+    let compose = dir.path().join("compose.yaml");
+    std::fs::write(
+        &compose,
+        "services:\n  web:\n    image: nginx\n    environment:\n      DATABASE_URL: postgresql://db\n",
+    )
+    .unwrap();
+    let rules = dir.path().join("rules.toml");
+    std::fs::write(
+        &rules,
+        "[patterns]\nDATABSE_URL = \"^postgres(ql)?://\"\n\n[max_length]\nAPI_KE = 32\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--config"])
+        .arg(rules.display().to_string())
+        .arg("--file")
+        .arg(compose.display().to_string())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("unknown-rule-variable"))
+        .stdout(predicate::str::contains("DATABSE_URL"))
+        .stdout(predicate::str::contains("API_KE"))
+        // the correctly-named rule fires, the typo one does not
+        .stdout(predicate::str::contains("pattern-mismatch").not());
+}
+
+#[test]
 fn audit_pattern_rules_mismatch() {
     // precedence has no DATABASE_URL, so the pattern applies only when the
     // variable exists; build a quick temp compose with a violating value.

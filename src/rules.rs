@@ -155,6 +155,46 @@ pub fn check_rules(variables: &[(String, Option<String>)], rules: &Rules) -> Vec
     issues
 }
 
+/// `[patterns]`, `[allowed]`, and `[max_length]` keys that name variables
+/// absent from the audited project. Such rules silently never fire — usually
+/// a typo in envorigin.toml — so the audit reports them as warnings.
+/// `required` and `forbidden` keys are intentionally excluded (they name
+/// variables that legitimately do not exist), as are keys that `required`
+/// also names: a pattern declared for a required variable is the standard
+/// "convention for a variable the project must add" setup.
+pub fn unknown_rule_issues(
+    rules: &Rules,
+    variables: &[(String, Option<String>)],
+    target: &str,
+) -> Vec<AuditIssue> {
+    let defined: std::collections::HashSet<&str> =
+        variables.iter().map(|(name, _)| name.as_str()).collect();
+    let required: std::collections::HashSet<&str> =
+        rules.required.iter().map(String::as_str).collect();
+    let mut keys: Vec<&String> = rules
+        .patterns
+        .keys()
+        .chain(rules.allowed.keys())
+        .chain(rules.max_length.keys())
+        .collect();
+    keys.sort();
+    keys.dedup();
+    keys.into_iter()
+        .filter(|key| !defined.contains(key.as_str()) && !required.contains(key.as_str()))
+        .map(|key| {
+            AuditIssue::new(
+                Severity::Warning,
+                "unknown-rule-variable",
+                format!(
+                    "rule for {key} in envorigin.toml does not match any variable in {target} — check for a typo or a stale rule"
+                ),
+                None,
+                None,
+            )
+        })
+        .collect()
+}
+
 pub fn default_config_path() -> Option<PathBuf> {
     let path = PathBuf::from("envorigin.toml");
     path.exists().then_some(path)
@@ -163,6 +203,59 @@ pub fn default_config_path() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unknown_rule_keys_are_reported_but_required_is_not() {
+        let rules = Rules {
+            required: vec!["NEVER_DEFINED".to_string()],
+            forbidden: vec!["ALSO_ABSENT".to_string()],
+            patterns: BTreeMap::from([("TYPO_DATABSE_URL".to_string(), "^postgres".to_string())]),
+            allowed: BTreeMap::from([("REAL_VAR".to_string(), vec!["a".to_string()])]),
+            max_length: BTreeMap::from([("TYPO_API_KE".to_string(), 32)]),
+            ..Rules::default()
+        };
+        let variables = vec![("REAL_VAR".to_string(), Some("a".to_string()))];
+        let issues = unknown_rule_issues(&rules, &variables, "the project");
+        let keys: Vec<&str> = issues.iter().map(|issue| issue.message.as_str()).collect();
+        assert_eq!(issues.len(), 2, "typo keys only: {keys:?}");
+        assert!(issues
+            .iter()
+            .any(|issue| issue.code == "unknown-rule-variable"));
+        assert!(issues
+            .iter()
+            .all(|issue| issue.message.contains("TYPO_DATABSE_URL")
+                || issue.message.contains("TYPO_API_KE")));
+        // required / forbidden legitimately name absent variables.
+        assert!(issues
+            .iter()
+            .all(|issue| !issue.message.contains("NEVER_DEFINED")
+                && !issue.message.contains("ALSO_ABSENT")));
+    }
+
+    #[test]
+    fn pattern_for_required_variable_is_not_flagged() {
+        let rules = Rules {
+            required: vec!["DATABASE_URL".to_string()],
+            patterns: BTreeMap::from([("DATABASE_URL".to_string(), "^postgres".to_string())]),
+            ..Rules::default()
+        };
+        let issues = unknown_rule_issues(&rules, &[], "the project");
+        assert!(
+            issues.is_empty(),
+            "required-name rule keys are convention, not typos"
+        );
+    }
+
+    #[test]
+    fn unknown_rule_keys_dedupe_across_sections() {
+        let rules = Rules {
+            patterns: BTreeMap::from([("TYPO".to_string(), "^x".to_string())]),
+            allowed: BTreeMap::from([("TYPO".to_string(), vec!["a".to_string()])]),
+            ..Rules::default()
+        };
+        let issues = unknown_rule_issues(&rules, &[], "the project");
+        assert_eq!(issues.len(), 1, "same key in two sections reports once");
+    }
 
     #[test]
     fn missing_required_and_prefix_violations() {

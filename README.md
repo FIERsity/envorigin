@@ -272,9 +272,12 @@ API_KEY = 64                            # length cap
 | `pattern-mismatch` | error | a variable's value fails its `[patterns]` regex |
 | `disallowed-value` | error | a variable's value is not in its `[allowed]` set |
 | `value-too-long` | error | a variable exceeds its `[max_length]` cap |
+| `unknown-rule-variable` | warning | a `[patterns]`/`[allowed]`/`[max_length]` key matches no variable — usually a typo, and the rule would silently never fire |
 
 The same checks apply to all four backends; `--fail-on` gates CI exactly as
-for the built-in checks.
+for the built-in checks. Rule keys for `required` variables are exempt from
+`unknown-rule-variable`: declaring a convention for a variable the project
+must add is the intended setup.
 
 EnvOrigin audits its own workflow on every push: the `Audit own workflow
 (dogfood)` step in `.github/workflows/ci.yml` runs

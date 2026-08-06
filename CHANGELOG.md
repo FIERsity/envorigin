@@ -13,6 +13,10 @@ All notable changes to EnvOrigin are documented here. The format follows
   `--show-values`.
 - `diff --fail-on-drift` — exit 1 when any variable carries different values;
   a CI gate for both dotenv-file and project diff.
+- `unknown-rule-variable` audit warning — `[patterns]`/`[allowed]`/
+  `[max_length]` keys in `envorigin.toml` that match no variable in the
+  audited project are reported (typo in the config would otherwise silently
+  disable the rule). Keys also named in `required` are exempt.
 
 ## [1.10.0] - 2026-08-06
 
