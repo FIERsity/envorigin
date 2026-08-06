@@ -218,6 +218,21 @@ pub fn audit_project(
                     Some(path.clone()),
                     Some(entry.line),
                 ));
+                // An unused sensitive variable is still a plaintext secret
+                // sitting in a file: flag it even though nothing consumes it.
+                if is_sensitive(&entry.key) {
+                    if let Some(value) = entry.value.as_deref() {
+                        if !value.is_empty() {
+                            check_sensitive_value(
+                                &mut issues,
+                                &entry.key,
+                                value,
+                                Some(path.clone()),
+                                Some(entry.line),
+                            );
+                        }
+                    }
+                }
             }
         }
     }

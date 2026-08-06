@@ -421,7 +421,7 @@ fn audit_command() -> Command {
 fn audit_reports_sensitive_shadowed_and_unused() {
     let output = audit_command().assert().failure();
     output
-        .stdout(predicate::str::contains("2 error(s), 3 warning(s), 2 info"))
+        .stdout(predicate::str::contains("2 error(s), 4 warning(s), 3 info"))
         .stdout(predicate::str::contains("sensitive-value"))
         .stdout(predicate::str::contains("sensitive-placeholder"))
         .stdout(predicate::str::contains("API_TOKEN"))
@@ -1026,4 +1026,16 @@ fn init_writes_template_and_does_not_overwrite() {
         std::fs::read_to_string(dir.path().join("envorigin.toml")).unwrap(),
         content
     );
+}
+
+#[test]
+fn audit_flags_unused_sensitive_interpolation_values() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args(["audit", "--no-docker-check", "--file"])
+        .arg(audit_fixture())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("LEAKED_TOKEN"))
+        .stdout(predicate::str::contains("unused-interpolation-variable"));
 }
