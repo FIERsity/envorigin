@@ -244,6 +244,7 @@ express:
 | `private-key-in-value` | error | any variable embeds a PEM private key (`-----BEGIN ... PRIVATE KEY-----`) |
 | `known-secret-format` | error | any variable contains a known credential shape (AWS `AKIA…`, GitHub `ghp_…`, Stripe `sk_live_…`, Slack, OpenAI) — detected by value, not name |
 | `unused-interpolation-variable` | info | an interpolation-file variable no service consumes (sensitive ones also get the placeholder/value checks — a plaintext secret is flagged even when unused) |
+| `env-file-missing` | info | a short-syntax `env_file:` points at a missing file — a notice, mirroring `docker compose config` (long-syntax `required: true` still errors) |
 | `dotenv-trailing-content`, docker checks, … | as diagnosed | existing analyzer diagnostics |
 
 ### Secret managers (Vault, AWS Secrets Manager/SSM)
@@ -434,6 +435,9 @@ each other in any order (GitLab semantics), so values are resolved in a
 second pass over all definitions. `include: remote` / `include: template`
 are reported as external and not fetched. Statically-known predefined
 variables (`CI_*`, `GITLAB_*`, `RUNNER_*`) are labelled as GitLab predefined.
+Multi-document files (`---` separated, e.g. a `spec:` document followed by
+the pipeline) are merged in order; CI/CD component inputs v2
+(`$[[ inputs.X ]]`) surface as external references.
 
 ```text
 $ envorigin gitlab explain BUILD_ID -j build --show-values
