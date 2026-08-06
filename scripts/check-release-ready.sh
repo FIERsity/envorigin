@@ -35,7 +35,7 @@ cargo fmt --check || fail "fmt"
 echo "==> 5/8 release.sh syntax"
 bash -n scripts/release.sh || fail "release.sh syntax"
 
-echo "==> 6/7 workflows (actionlint)"
+echo "==> 6/8 workflows (actionlint)"
 if command -v actionlint > /dev/null 2>&1; then
   actionlint .github/workflows/*.yml || fail "actionlint"
 else
