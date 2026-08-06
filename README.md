@@ -77,6 +77,7 @@ carries prebuilt binaries — no Rust toolchain or Homebrew needed:
 | Platform | Asset |
 | --- | --- |
 | Linux x86_64 | `envorigin-<version>-x86_64-unknown-linux-gnu` |
+| Linux arm64 | `envorigin-<version>-aarch64-unknown-linux-gnu` |
 | macOS arm64 | `envorigin-<version>-aarch64-apple-darwin` |
 | macOS x86_64 | `envorigin-<version>-x86_64-apple-darwin` |
 | Windows x86_64 | `envorigin-<version>-x86_64-pc-windows-msvc.exe` |
