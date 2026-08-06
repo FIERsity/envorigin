@@ -37,3 +37,5 @@ jobs:
       # Exercise the published wrapper action against this repository:
       # it downloads the prebuilt binary and audits every workflow file.
       - uses: FIERsity/envorigin-action@v1
+        with:
+          fail-on: warning
