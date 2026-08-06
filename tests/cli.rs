@@ -1462,3 +1462,116 @@ fn diff_project_fail_on_drift_exits_failure() {
         .assert()
         .failure();
 }
+
+// ---- unified entry: auto-detection and positional path ----
+
+fn fixture_dir(sub: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(sub)
+        .display()
+        .to_string()
+}
+
+fn bare_command() -> Command {
+    Command::cargo_bin("envorigin").unwrap()
+}
+
+#[test]
+fn audit_auto_detects_gitlab_config() {
+    bare_command()
+        .current_dir(fixture_dir("gitlab"))
+        .arg("audit")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("file: ./.gitlab-ci.yml"));
+}
+
+#[test]
+fn scan_auto_detects_actions_workflow() {
+    bare_command()
+        .current_dir(fixture_dir("actions"))
+        .arg("scan")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("workflow:"));
+}
+
+#[test]
+fn explain_auto_detects_circleci_config() {
+    bare_command()
+        .current_dir(fixture_dir("circleci"))
+        .args(["explain", "TARGET"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(".circleci/config.yml"));
+}
+
+#[test]
+fn audit_auto_detects_bare_dotenv_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join(".env"), "API_KEY=sk_live_test123\n").unwrap();
+    bare_command()
+        .current_dir(dir.path())
+        .arg("audit")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("files: ./.env"))
+        .stdout(predicate::str::contains("sensitive-value"));
+}
+
+#[test]
+fn scan_auto_detected_dotenv_reports_no_scan_support() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join(".env"), "API_KEY=sk_live_test123\n").unwrap();
+    bare_command()
+        .current_dir(dir.path())
+        .arg("scan")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("use `envorigin dotenv audit`"));
+}
+
+#[test]
+fn audit_accepts_directory_as_positional_path() {
+    bare_command()
+        .arg("audit")
+        .arg("--no-docker-check")
+        .arg(fixture_dir("basic"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("compose:"));
+}
+
+#[test]
+fn scan_accepts_compose_file_as_positional_path() {
+    bare_command()
+        .arg("scan")
+        .arg("--no-docker-check")
+        .arg(fixture("basic"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("service web"));
+}
+
+#[test]
+fn audit_in_empty_directory_errors_helpfully() {
+    let dir = tempfile::tempdir().unwrap();
+    bare_command()
+        .current_dir(dir.path())
+        .arg("audit")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("no compose or CI config found"));
+}
+
+#[test]
+fn scan_hints_at_show_values_flag_when_redacted() {
+    bare_command()
+        .arg("scan")
+        .arg("--no-docker-check")
+        .arg(fixture_dir("basic"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("pass --show-values to reveal"));
+}

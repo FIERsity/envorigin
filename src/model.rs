@@ -32,6 +32,14 @@ pub enum AnalysisError {
     InvalidWorkflow { path: PathBuf, message: String },
     #[error("invalid rules file {path}: {message}")]
     InvalidRules { path: PathBuf, message: String },
+    #[error("no compose or CI config found in {path} (tried compose.y*ml, .github/workflows, .gitlab-ci.yml, .circleci/config.yml, .env)")]
+    NoConfigFound { path: PathBuf },
+    #[error("detected {kind} format; `{command}` does not support it — {suggestion}")]
+    AutoDetectedNoCommand {
+        kind: String,
+        command: String,
+        suggestion: String,
+    },
     #[error("unknown job '{0}'")]
     UnknownJob(String),
     #[error("--step is required because job '{0}' defines multiple steps")]
