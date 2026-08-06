@@ -651,6 +651,14 @@ fn gitlab_fixture() -> String {
         .to_string()
 }
 
+fn gitlab_named_fixture(name: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/gitlab")
+        .join(name)
+        .display()
+        .to_string()
+}
+
 fn gitlab_command(subcommand: &str) -> Command {
     let mut command = Command::cargo_bin("envorigin").unwrap();
     command
@@ -670,6 +678,44 @@ fn gitlab_scan_lists_globals_jobs_and_includes() {
         .stdout(predicate::str::contains("job build"))
         .stdout(predicate::str::contains("include files:"))
         .stdout(predicate::str::contains("gitlab-include-external"));
+}
+
+#[test]
+fn gitlab_parses_multi_document_yaml() {
+    // Real-world shape (gitlab-org/cli): a `spec:` document followed by the
+    // pipeline document; GitLab merges documents, later keys win.
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("gitlab")
+        .arg("scan")
+        .arg("--file")
+        .arg(gitlab_named_fixture("multi-doc.yml"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("GO_VERSION"))
+        .stdout(predicate::str::contains("TAG_RELEASE_IMAGE_VERSION"))
+        .stdout(predicate::str::contains("job release"))
+        .stdout(predicate::str::contains("GIT_DEPTH"))
+        // the component spec document does not leak into the pipeline
+        .stdout(predicate::str::contains("spec").not());
+}
+
+#[test]
+fn gitlab_parses_double_merge_keys() {
+    // Real-world shape (fdroid/fdroidserver): two `<<` merge keys in one
+    // job. YAML 1.1 allows it; serde_yaml rejects the duplicate key.
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("gitlab")
+        .arg("scan")
+        .arg("--file")
+        .arg(gitlab_named_fixture("double-merge.yml"))
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("job bandit"))
+        .stdout(predicate::str::contains("PIP_CACHE"))
+        // the merged job keeps its own variables (merge anchors resolved)
+        .stdout(predicate::str::contains("job .python-rules-changes").not());
 }
 
 #[test]

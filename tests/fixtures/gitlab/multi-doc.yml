@@ -1,0 +1,19 @@
+# GitLab CI component spec (first document) + pipeline (second document).
+# Real-world shape from gitlab-org/cli's .gitlab-ci.yml: GitLab merges
+# documents in order; later keys win. Also uses a `!reference` custom tag.
+spec:
+  inputs:
+    release_schedule:
+      type: boolean
+      default: false
+---
+variables:
+  GO_VERSION: "1.26.5"
+  TAG_RELEASE_IMAGE_VERSION: $[[ inputs.tag_release_image_version ]]
+
+release:
+  before_script:
+    - !reference [.release-template, before_script]
+    - echo hi
+  variables:
+    GIT_DEPTH: 0

@@ -40,6 +40,13 @@ for repo in outline/outline rust-lang/cargo astral-sh/uv; do
     git clone -q --depth 1 "https://github.com/$repo.git" "$WORK/$name"
   fi
 done
+# GitLab-hosted repos exercising multi-document YAML and double merge keys.
+for repo in "https://gitlab.com/gitlab-org/cli.git glab" "https://gitlab.com/fdroid/fdroidserver.git fdroid"; do
+  read -r url name <<< "$repo"
+  if [[ ! -d "$WORK/$name" ]]; then
+    git clone -q --depth 1 "$url" "$WORK/$name"
+  fi
+done
 
 failures=0
 
@@ -94,6 +101,22 @@ if ! "$BIN" audit --no-docker-check -f "$WORK/outline/docker-compose.yml" \
   echo "FAIL (outline compose audit)"
   failures=$((failures + 1))
 fi
+
+echo "==> gitlab backend on real GitLab-hosted configs"
+# glab: multi-document YAML (spec doc + pipeline doc), !reference tags,
+# anchors; fdroid: two << merge keys per job, include files.
+gitlab_cases=(
+  "glab/.gitlab-ci.yml GO_VERSION"
+  "fdroid/.gitlab-ci.yml GIT_DEPTH"
+)
+for case in "${gitlab_cases[@]}"; do
+  read -r file variable <<< "$case"
+  output="$("$BIN" gitlab scan --file "$WORK/$file" 2>&1)"
+  if [[ "$output" != *"$variable"* ]]; then
+    echo "FAIL (gitlab scan): $file ($variable missing)"
+    failures=$((failures + 1))
+  fi
+done
 
 if [[ $failures -gt 0 ]]; then
   echo "FAILED: $failures check(s)"
