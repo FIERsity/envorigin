@@ -298,6 +298,20 @@ error [credential-in-url]: URL embeds credentials in a URL ... (.env:3)
 
 ### `diff`
 
+Compare dotenv files (below) **or** two Compose projects' final resolved
+environments:
+
+```text
+$ envorigin diff --project-a ./local --project-b ./prod
+
+drift (1):
+  web.DB_HOST: ./local = "localhost" | ./prod = "db.prod.example.com"
+only in ./local (1):
+  web.ONLY_A = "a_value"
+```
+
+### `diff` (dotenv files)
+
 Compare dotenv files for environment drift — the same variable with different
 values across local, CI, and staging:
 
@@ -436,7 +450,7 @@ caching needed.
 cargo test
 ```
 
-111 tests: unit tests for the dotenv parser, the interpolator, Compose
+112 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

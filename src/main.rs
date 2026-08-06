@@ -17,7 +17,7 @@ use envorigin::cli::{
     ActionsCommand, CircleciCommand, Cli, Command, CommonArgs, FailLevel, GitlabCommand,
     OutputFormat,
 };
-use envorigin::diff::{diff_files, diff_human, diff_json};
+use envorigin::diff::{diff_files, diff_human, diff_json, diff_projects, project_diff_human};
 use envorigin::gitlab::{
     analyze_gitlab, gitlab_human, gitlab_json, gitlab_variable_human, gitlab_variable_json,
 };
@@ -319,6 +319,25 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
             )
         }
         Command::Diff(args) => {
+            if let (Some(a), Some(b)) = (&args.project_a, &args.project_b) {
+                let report_a = analyze(&AnalyzeOptions {
+                    compose_file: a.join("compose.yaml"),
+                    docker_check: false,
+                    ..AnalyzeOptions::default()
+                })?;
+                let report_b = analyze(&AnalyzeOptions {
+                    compose_file: b.join("compose.yaml"),
+                    docker_check: false,
+                    ..AnalyzeOptions::default()
+                })?;
+                let entries = diff_projects(&report_a, &report_b);
+                return Ok(outcome(project_diff_human(
+                    &a.display().to_string(),
+                    &b.display().to_string(),
+                    &entries,
+                    args.show_values,
+                )));
+            }
             let report = diff_files(&args.files)?;
             Ok(outcome(match args.format {
                 OutputFormat::Human => diff_human(&report, args.show_values),

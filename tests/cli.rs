@@ -1164,3 +1164,37 @@ fn dotenv_audit_applies_rules() {
         .failure()
         .stderr(predicate::str::contains("invalid rules file"));
 }
+
+#[test]
+fn diff_compares_project_final_environments() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = dir.path().join("a");
+    let b = dir.path().join("b");
+    std::fs::create_dir_all(&a).unwrap();
+    std::fs::create_dir_all(&b).unwrap();
+    std::fs::write(
+        a.join("compose.yaml"),
+        "services:\n  web:\n    image: nginx\n    environment:\n      DB_HOST: localhost\n      ONLY_A: a_value\n",
+    )
+    .unwrap();
+    std::fs::write(
+        b.join("compose.yaml"),
+        "services:\n  web:\n    image: nginx\n    environment:\n      DB_HOST: db.prod.example.com\n      ONLY_B: b_value\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("diff")
+        .arg("--project-a")
+        .arg(a.display().to_string())
+        .arg("--project-b")
+        .arg(b.display().to_string())
+        .arg("--show-values")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("project diff"))
+        .stdout(predicate::str::contains("web.DB_HOST"))
+        .stdout(predicate::str::contains("\"db.prod.example.com\""))
+        .stdout(predicate::str::contains("only in"))
+        .stdout(predicate::str::contains("ONLY_A"));
+}

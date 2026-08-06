@@ -168,8 +168,14 @@ pub struct GraphArgs {
 #[derive(Debug, Args)]
 pub struct DiffArgs {
     /// Dotenv files to compare (two or more).
-    #[arg(required = true, num_args = 2..)]
+    #[arg(required = true, num_args = 2.., conflicts_with_all = ["project_a", "project_b"])]
     pub files: Vec<PathBuf>,
+    /// Compare the final environments of two Compose projects instead.
+    #[arg(long, conflicts_with = "files")]
+    pub project_a: Option<PathBuf>,
+    /// Second Compose project directory.
+    #[arg(long, requires = "project_a")]
+    pub project_b: Option<PathBuf>,
     /// Reveal values of sensitive-looking variables too.
     #[arg(long)]
     pub show_values: bool,
