@@ -237,6 +237,13 @@ forbidden = ["CI"]                         # must not be defined
 
 [patterns]
 DATABASE_URL = "^postgres(ql)?://"         # value format validation
+LOG_LEVEL = "^(debug|info|warn|error)$"
+
+[allowed]
+DB_ENGINE = ["postgres", "mysql"]      # enum whitelist
+
+[max_length]
+API_KEY = 64                            # length cap
 ```
 
 | Check | Severity | Trigger |
@@ -245,6 +252,8 @@ DATABASE_URL = "^postgres(ql)?://"         # value format validation
 | `naming-prefix` | warning | a user-defined variable violates the prefix |
 | `forbidden-variable` | error | a forbidden name is defined |
 | `pattern-mismatch` | error | a variable's value fails its `[patterns]` regex |
+| `disallowed-value` | error | a variable's value is not in its `[allowed]` set |
+| `value-too-long` | error | a variable exceeds its `[max_length]` cap |
 
 The same checks apply to all four backends; `--fail-on` gates CI exactly as
 for the built-in checks.
@@ -392,7 +401,7 @@ caching needed.
 cargo test
 ```
 
-98 tests: unit tests for the dotenv parser, the interpolator, Compose
+99 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
