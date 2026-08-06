@@ -219,7 +219,9 @@ info [unused-interpolation-variable]: ORPHAN in the interpolation file is not co
 
 All audit commands support `--format json` (issues array) and
 `--format github` (GitHub Actions workflow commands — problems appear
-annotated on the offending file lines in pull requests).
+annotated on the offending file lines in pull requests). `--ignore <code>`
+(repeatable) exempts issue codes — use it to onboard legacy projects and
+remove ignores as problems get fixed.
 
 `--fail-on <level>` (default `error`) turns the audit into a CI gate:
 `--fail-on warning` exits 1 when any warning or error is found. Values are
@@ -403,7 +405,7 @@ caching needed.
 cargo test
 ```
 
-100 tests: unit tests for the dotenv parser, the interpolator, Compose
+102 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

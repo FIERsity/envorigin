@@ -961,3 +961,41 @@ fn explain_debug_prints_resolution_trace() {
         .stdout(predicate::str::contains("DefaultEnvFile"))
         .stdout(predicate::str::contains("1 definition(s)"));
 }
+
+#[test]
+fn audit_ignore_exempts_codes_and_clears_exit() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args([
+            "audit",
+            "--ignore",
+            "sensitive-value",
+            "--no-docker-check",
+            "--file",
+        ])
+        .arg(audit_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 error(s)"))
+        .stdout(predicate::str::contains("sensitive-value").not());
+}
+
+#[test]
+fn audit_ignore_github_format_filters_annotations() {
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .args([
+            "audit",
+            "--format",
+            "github",
+            "--ignore",
+            "sensitive-value",
+            "--no-docker-check",
+            "--file",
+        ])
+        .arg(audit_fixture())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("::error").not())
+        .stdout(predicate::str::contains("::warning"));
+}

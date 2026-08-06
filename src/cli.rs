@@ -67,6 +67,10 @@ pub struct CircleciAuditArgs {
     /// Team convention rules file (default: ./envorigin.toml if present).
     #[arg(long)]
     pub config: Option<PathBuf>,
+    /// Ignore issues with this code (repeatable). Use for CI migrations:
+    /// exempt legacy problems, then remove ignores as they are fixed.
+    #[arg(long)]
+    pub ignore: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -121,6 +125,10 @@ pub struct GitlabAuditArgs {
     /// Team convention rules file (default: ./envorigin.toml if present).
     #[arg(long)]
     pub config: Option<PathBuf>,
+    /// Ignore issues with this code (repeatable). Use for CI migrations:
+    /// exempt legacy problems, then remove ignores as they are fixed.
+    #[arg(long)]
+    pub ignore: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -176,6 +184,10 @@ pub struct AuditArgs {
     /// Team convention rules file (default: ./envorigin.toml if present).
     #[arg(long)]
     pub config: Option<PathBuf>,
+    /// Ignore issues with this code (repeatable). Use for CI migrations:
+    /// exempt legacy problems, then remove ignores as they are fixed.
+    #[arg(long)]
+    pub ignore: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -238,6 +250,10 @@ pub struct ActionsAuditArgs {
     /// Team convention rules file (default: ./envorigin.toml if present).
     #[arg(long)]
     pub config: Option<PathBuf>,
+    /// Ignore issues with this code (repeatable). Use for CI migrations:
+    /// exempt legacy problems, then remove ignores as they are fixed.
+    #[arg(long)]
+    pub ignore: Vec<String>,
 }
 
 #[derive(Debug, Args)]
