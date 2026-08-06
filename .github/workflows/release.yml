@@ -57,7 +57,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd target/${{ matrix.target }}/release
-          gh release upload "$TAG" "envorigin-${{ env.TAG }}-${{ matrix.target }}${{ matrix.ext }}" \
+          mv envorigin${{ matrix.ext }} "envorigin-${TAG}-${{ matrix.target }}${{ matrix.ext }}"
+          gh release upload "$TAG" "envorigin-${TAG}-${{ matrix.target }}${{ matrix.ext }}" \
             --clobber \
             --repo "$GITHUB_REPOSITORY"
         shell: bash
