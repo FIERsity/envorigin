@@ -90,10 +90,9 @@ Q: Does it upload my configs?
 A: No. Everything runs locally; audit output goes to your terminal/CI.
 
 Q: Is there a VS Code extension?
-A: No client extension — `envorigin lsp` is a standard LSP server, so
-Neovim, Emacs, JetBrains, and VS Code (any LSP client) can attach.
-The extension client was dropped deliberately: env config files are
-low-frequency-edited, so a CLI + CI gate covers the real workflow.
+A: `envorigin lsp` is a standard LSP server — any LSP-capable editor
+attaches to it, VS Code included (hover, go-to-definition, live
+diagnostics while you edit).
 
 Q: Do you handle shell interpolation ($VAR, ${VAR:-default})?
 A: Yes — Compose-flavored interpolation with per-reference source
