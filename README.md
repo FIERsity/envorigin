@@ -3,7 +3,8 @@
 [![CI](https://github.com/FIERsity/envorigin/actions/workflows/ci.yml/badge.svg)](https://github.com/FIERsity/envorigin/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/envorigin)](https://crates.io/crates/envorigin)
 [![Downloads](https://img.shields.io/crates/d/envorigin)](https://crates.io/crates/envorigin)
-[![Homebrew](https://img.shields.io/badge/dynamic/json?url=https://formulae.brew.sh/api/formula/envorigin.json&query=$.versions.stable&label=homebrew)](https://github.com/FIERsity/homebrew-envorigin)
+[![Homebrew](https://img.shields.io/badge/homebrew-tap-blue)](https://github.com/FIERsity/homebrew-envorigin)
+[![docs.rs](https://img.shields.io/docsrs/envorigin)](https://docs.rs/envorigin)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Explain where environment variables actually come from — in Docker Compose
