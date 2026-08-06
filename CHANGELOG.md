@@ -4,6 +4,14 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-08-06
+
+### Added
+
+- Audit detects known secret formats by value shape (`AKIA…` AWS,
+  `ghp_…` GitHub PAT, `sk_live_…` Stripe, Slack, `sk-…` API keys) —
+  more reliable than name matching. All four backends.
+
 ## [1.5.0] - 2026-08-06
 
 ### Added
