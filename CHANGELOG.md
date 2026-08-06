@@ -4,6 +4,22 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-08-06
+
+### Added
+
+- `explain --debug` — full resolution trace (every definition in the
+  interpolation context with precedence and order).
+
+### Changed
+
+- First stable release: the entire roadmap is implemented — four
+  backends (Docker Compose, GitHub Actions, GitLab CI, CircleCI) with
+  scan/explain/audit/diff/graph, a six-rule conventions engine, LSP +
+  VS Code extension, shell completions, JSON/GitHub-annotation audit
+  output, and an automated release pipeline (crates.io + Homebrew +
+  GitHub Releases), backed by 100 tests and real-repository validation.
+
 ## [0.9.0] - 2026-08-06
 
 ### Added
