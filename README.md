@@ -246,6 +246,36 @@ express:
 | `unused-interpolation-variable` | info | an interpolation-file variable no service consumes (sensitive ones also get the placeholder/value checks — a plaintext secret is flagged even when unused) |
 | `dotenv-trailing-content`, docker checks, … | as diagnosed | existing analyzer diagnostics |
 
+### Secret managers (Vault, AWS Secrets Manager/SSM)
+
+EnvOrigin never resolves external secrets — it detects that a value *is* an
+external reference and reports it as `secret-manager-reference` (info), so
+pipelines don't treat a placeholder as a real credential:
+
+| Value shape | Detected as |
+| --- | --- |
+| `vault:secret/data/db#password` | HashiCorp Vault |
+| `arn:aws:secretsmanager:region:…:secret:name` | AWS Secrets Manager |
+| `arn:aws:ssm:region:…:parameter/name` / `sm://…` | AWS SSM |
+| `{{ secret … }}` / `{{ secrets.… }}` | secret templating |
+
+The recommended pattern is to keep the reference in the config and store
+the real value out-of-band:
+
+```yaml
+# docker-compose.yml — the reference is intentional, no secret here
+services:
+  web:
+    environment:
+      DB_PASSWORD: vault:secret/data/db#password
+      AWS_CREDENTIALS: arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/credentials
+```
+
+`envorigin audit` reports both as `info [secret-manager-reference]` (no
+pipeline failure by default). Rotate any *concrete* value the audit flags
+as `sensitive-value` into one of these references, then re-run
+`envorigin audit --fail-on error` to confirm.
+
 ```text
 $ envorigin audit
 
@@ -537,7 +567,7 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 - [x] prebuilt release binaries for linux/macOS/Windows (no toolchain needed)
 - [x] GitHub Action wrapper (`FIERsity/envorigin-action`, dogfooded in this
       repo's own CI)
-- [ ] integration notes for secret managers (Vault, AWS SSM)
+- [x] integration notes for secret managers (Vault, AWS SSM)
 
 ### Shell completions
 
