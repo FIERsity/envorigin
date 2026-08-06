@@ -84,7 +84,7 @@ carries prebuilt binaries — no Rust toolchain or Homebrew needed:
 
 ```sh
 # e.g. CI cache or a Docker layer
-curl -sL https://github.com/FIERsity/envorigin/releases/download/v1.11.0/envorigin-v1.11.0-x86_64-unknown-linux-gnu -o envorigin
+curl -sL https://github.com/FIERsity/envorigin/releases/download/v1.12.0/envorigin-v1.12.0-x86_64-unknown-linux-gnu -o envorigin
 chmod +x envorigin
 ```
 
@@ -93,7 +93,7 @@ Requires Rust 1.86+.
 ## Usage
 
 ```text
-EnvOrigin 0.3.0
+EnvOrigin 1.12.0
 Explain where environment variables come from
 
 Usage: envorigin <COMMAND>
@@ -135,7 +135,7 @@ Common flags for `scan`/`explain`:
 ```text
 $ envorigin scan
 
-EnvOrigin 0.3.0
+EnvOrigin 1.12.0
 compose: /app/compose.yaml
 docker verification: verified
 interpolation files: /app/.env
@@ -279,7 +279,7 @@ as `sensitive-value` into one of these references, then re-run
 ```text
 $ envorigin audit
 
-EnvOrigin 0.3.0 — audit
+EnvOrigin 1.12.0 — audit
 compose: /app/compose.yaml
 
 2 error(s), 2 warning(s), 1 info
@@ -393,7 +393,7 @@ values across local, CI, and staging:
 ```text
 $ envorigin diff .env ci.env
 
-EnvOrigin 0.3.0 — diff
+EnvOrigin 1.12.0 — diff
 .env vs ci.env
 
 drift (2):
