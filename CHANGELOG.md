@@ -4,6 +4,13 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-08-06
+
+### Added
+
+- Audit reports `private-key-in-value` (error) for any variable whose value
+  embeds a PEM private key block. All four backends.
+
 ## [1.4.0] - 2026-08-06
 
 ### Added
