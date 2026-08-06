@@ -202,6 +202,19 @@ candidates:
   - [winner] step env (.github/workflows/ci.yml:19) = "step_value"
 ```
 
+`--debug` adds a layer-by-layer resolution trace (which definition wins at
+each precedence level):
+
+```text
+$ envorigin actions explain SHARED -j build -s Configure --debug
+
+resolution trace for SHARED (workflow env < job env < step env < env file < inputs; later wins):
+  #1   shadowed  workflow env (.github/workflows/ci.yml:4)   "workflow_value"
+  #2   shadowed  job env (.github/workflows/ci.yml:11)       "job_value"
+  #3   winner    step env (.github/workflows/ci.yml:19)      "step_value"
+  3 definition(s)
+```
+
 `actions` also tracks `${{ ... }}` expressions — the reference list answers
 "what did this value read from?" for `${{ env.X }}` (resolved to its source),
 `${{ secrets.X }}` / `${{ vars.X }}` / `${{ github.* }}` (marked `external
@@ -226,6 +239,7 @@ express:
 | `undefined-interpolation-variable` | warning | `$VAR` / `${VAR}` references a variable that resolves to empty |
 | `shadowed-env-line` | warning | a definition loses to a higher-precedence layer with a different value — dead code |
 | `secret-manager-reference` | info | a sensitive variable references an external secret (Vault, AWS Secrets Manager/SSM, templating) — its value cannot be resolved statically |
+| `empty-value` | info | a variable resolves to an empty string — usually an accidental stub |
 | `credential-in-url` | error | any variable embeds credentials in a URL (`scheme://user:pass@host`) — the most common leak, usually under names like `DATABASE_URL` |
 | `private-key-in-value` | error | any variable embeds a PEM private key (`-----BEGIN ... PRIVATE KEY-----`) |
 | `known-secret-format` | error | any variable contains a known credential shape (AWS `AKIA…`, GitHub `ghp_…`, Stripe `sk_live_…`, Slack, OpenAI) — detected by value, not name |

@@ -1042,6 +1042,43 @@ fn step_label(step: &ActionsStep) -> String {
     }
 }
 
+/// Layer-by-layer resolution trace for `explain --debug`: every definition
+/// in precedence order (lowest first — later layers win), with its layer,
+/// source location, and disposition.
+pub fn actions_debug_trace(variable: &ActionsVariable) -> String {
+    let mut output = String::new();
+    let _ = writeln!(
+        output,
+        "resolution trace for {} ({}):",
+        variable.variable,
+        layer_order_hint()
+    );
+    for (index, candidate) in variable.candidates.iter().enumerate() {
+        let marker = match candidate.disposition {
+            ActionsDisposition::Winner => "winner",
+            ActionsDisposition::Shadowed => "shadowed",
+        };
+        let value = candidate
+            .value
+            .as_deref()
+            .map(|value| display_value(value, true))
+            .unwrap_or_else(|| "—".to_string());
+        let _ = writeln!(
+            output,
+            "  #{:<3} {:<9} {:<14} {value}",
+            index + 1,
+            marker,
+            source_summary(&candidate.source)
+        );
+    }
+    let _ = writeln!(output, "  {} definition(s)", variable.candidates.len());
+    output
+}
+
+fn layer_order_hint() -> &'static str {
+    "workflow env < job env < step env < env file < inputs; later wins"
+}
+
 fn source_summary(source: &ActionsSourceRef) -> String {
     let kind = match source.kind {
         ActionsSourceKind::WorkflowEnv => "workflow env",
