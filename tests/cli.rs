@@ -1098,3 +1098,35 @@ fn audit_flags_known_secret_formats() {
         .stdout(predicate::str::contains("GitHub personal access token"))
         .stdout(predicate::str::contains("SAFE").not());
 }
+
+#[test]
+fn dotenv_audit_works_without_compose_context() {
+    let dir = tempfile::tempdir().unwrap();
+    let env_file = dir.path().join("creds.env");
+    std::fs::write(
+        &env_file,
+        "DB_PASSWORD=changeit\nAWS_KEY=AKIAIOSFODNN7EXAMPLE\nURL=postgres://admin:s3cret@db.example.com\n",
+    )
+    .unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("dotenv")
+        .arg("audit")
+        .arg(env_file.display().to_string())
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("sensitive-placeholder"))
+        .stdout(predicate::str::contains("known-secret-format"))
+        .stdout(predicate::str::contains("credential-in-url"));
+
+    let clean = dir.path().join("clean.env");
+    std::fs::write(&clean, "SAFE=value\n").unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .arg("dotenv")
+        .arg("audit")
+        .arg(clean.display().to_string())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("0 error(s)"));
+}
