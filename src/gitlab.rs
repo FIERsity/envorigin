@@ -672,7 +672,14 @@ pub fn gitlab_variable_human(
                 .as_ref()
                 .map(source_summary)
                 .unwrap_or_else(|| "unknown source".to_string());
-            let _ = writeln!(output, "  - ${} → {source}", reference.expression);
+            // V2 component-input references (`$[[ inputs.X ]]`) carry a
+            // dotted expression; render them with their own syntax.
+            let rendered = if reference.expression.contains('.') {
+                format!("$[[ {} ]]", reference.expression)
+            } else {
+                format!("${}", reference.expression)
+            };
+            let _ = writeln!(output, "  - {rendered} → {source}");
         }
     }
     if !variable.candidates.is_empty() {
