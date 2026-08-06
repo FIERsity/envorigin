@@ -37,7 +37,11 @@ else
   cargo build --quiet  # sync Cargo.lock
 fi
 
-git add Cargo.toml Cargo.lock
+echo "==> syncing VS Code extension version"
+sed -i '' "s|\"version\": \"[^\"]*\"|\"version\": \"$VERSION\"|" vscode/package.json
+sed -i '' "s|\"version\": \"[^\"]*\"|\"version\": \"$VERSION\"|" vscode/package-lock.json
+
+git add Cargo.toml Cargo.lock vscode/package.json vscode/package-lock.json
 git commit -m "chore: release v${VERSION}"
 git push
 

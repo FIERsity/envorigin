@@ -50,6 +50,13 @@ All notable changes to EnvOrigin are documented here. The format follows
   defunct mermaid.ink API check). All four backends validated: 226-line
   uv bench workflow and 155-line glab config graphs parse cleanly.
 
+### Fixed
+
+- VS Code extension version had drifted from the CLI (0.5.1 vs 1.11.0,
+  lockfile even older at 0.3.0). Synced to the CLI version and
+  `release.sh` now bumps `vscode/package.json` + `package-lock.json`
+  with every release so they can never drift again.
+
 ## [1.10.0] - 2026-08-06
 
 ### Added
