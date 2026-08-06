@@ -4,6 +4,14 @@ All notable changes to EnvOrigin are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-08-06
+
+### Added
+
+- `dotenv audit` applies `envorigin.toml` rules (`--config`): prefix,
+  forbidden, patterns, allowed, max_length on file entries. Invalid rules
+  files fail loudly.
+
 ## [1.7.0] - 2026-08-06
 
 ### Added
