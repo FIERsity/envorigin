@@ -8,6 +8,16 @@ All notable changes to EnvOrigin are documented here. The format follows
 
 ### Added
 
+- Unified entry: `audit`/`scan`/`explain`/`graph` auto-detect the
+  project type (compose → actions → gitlab → circleci → dotenv) — the
+  same command works in any repo with no flags, and the detected file
+  is named in the output. Backend-prefixed commands remain for pinning.
+- Positional path arguments on the top-level commands: a config file
+  or a directory to detect in (`envorigin audit ./dir`,
+  `envorigin scan compose.yaml`). A missing config in the target
+  directory errors helpfully.
+- Redaction hint — when values are hidden, human output ends with
+  "pass --show-values to reveal them".
 - `unknown-rule-variable` audit warning — `[patterns]`/`[allowed]`/
   `[max_length]` keys in `envorigin.toml` that match no variable in the
   audited project are reported (typo in the config would otherwise silently
