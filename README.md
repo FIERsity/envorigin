@@ -91,6 +91,56 @@ chmod +x envorigin
 
 Requires Rust 1.86+.
 
+## Quick start
+
+```sh
+brew install FIERsity/tap/envorigin      # or: cargo install envorigin
+cd your-project
+envorigin audit                          # ← that's it — the format is auto-detected
+```
+
+EnvOrigin figures out whether your project is Docker Compose, GitHub
+Actions, GitLab CI, CircleCI, or a plain dotenv project — no flags
+needed. Run it on your project right now:
+
+```text
+$ envorigin audit
+
+EnvOrigin 1.12.0 — audit
+compose: /app/compose.yaml
+
+2 error(s), 4 warning(s), 4 info
+
+error [sensitive-value]: API_TOKEN is set to a concrete value; verify it is not a real credential (/app/compose.yaml:7)
+warning [shadowed-env-line]: SHADOWED is shadowed by a higher-precedence layer and can be removed (/app/env/web.env:2)
+```
+
+Then answer "why is it *that* value" for one variable:
+
+```text
+$ envorigin explain DATABASE_URL
+
+DATABASE_URL for service web
+state: present
+value: <redacted sha256:61be8cd3>
+winner: service environment (compose.yaml:9)
+```
+
+Common scenarios:
+
+| I want to… | Run |
+| --- | --- |
+| see every variable and where it comes from | `envorigin scan` |
+| understand one variable | `envorigin explain DATABASE_URL` |
+| get a health report with fixes | `envorigin audit` |
+| gate my CI on the report | `envorigin audit --fail-on error` (or the GitHub Action) |
+| set team conventions | `envorigin init` → edit `envorigin.toml` |
+| compare environments | `envorigin diff --project-a ./dev --project-b ./prod` |
+
+Values are hidden by default — pass `--show-values` when you mean it.
+The backend-prefixed commands (`envorigin gitlab audit`, …) remain for
+when you want to pin the format explicitly.
+
 ## Usage
 
 ```text
@@ -119,11 +169,12 @@ Options:
   -V, --version  Print version
 ```
 
-Common flags for `scan`/`explain`:
+Common flags for `scan`/`explain`/`audit`/`graph`:
 
 | Flag | Meaning |
 | --- | --- |
-| `-f, --file <PATH>` | Compose file to analyze (default `compose.yaml`) |
+| `-f, --file <PATH>` | Compose file to analyze; omit to auto-detect (compose → actions → gitlab → circleci → dotenv) |
+| `PATH` (positional) | a config file, or a directory to detect in (`envorigin scan ./dir`) |
 | `--env-file <PATH>` | Compose interpolation file; repeatable, later files win |
 | `--project-directory <PATH>` | override the Compose project directory |
 | `--host-env-file <PATH>` | overlay the shell from a dotenv file (reproducible diagnosis) |
@@ -230,7 +281,9 @@ Flags: `-f/--file` (default `.github/workflows/ci.yml`), `-j/--job`,
 
 ### `audit` / `actions audit` / `gitlab audit` / `circleci audit`
 
-A checkable health report for a whole project. It aggregates every
+A checkable health report for a whole project. `envorigin audit`
+auto-detects the project format; the prefixed variants pin one. It
+aggregates every
 diagnostic the analyzer produces, then adds checks a diagnostic model cannot
 express:
 
@@ -534,9 +587,10 @@ caching needed.
 cargo test
 ```
 
-112 tests: unit tests for the dotenv parser, the interpolator, Compose
+145 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
-resolution, and the audit checks; plus end-to-end CLI tests against
+resolution, the audit checks, and project-type auto-detection; plus
+end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`
 that assert redaction, derivation tracking, the full shadowing chain,
 `COMPOSE_ENV_FILES` expansion, `format: raw` semantics,
