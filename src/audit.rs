@@ -97,6 +97,14 @@ fn secret_manager_ref(value: &str) -> Option<&'static str> {
     }
 }
 
+/// URLs with embedded credentials (`scheme://user:pass@host`) — the most
+/// common way secrets leak, usually under non-sensitive names like
+/// DATABASE_URL or REDIS_URL.
+fn is_credential_url(value: &str) -> bool {
+    let pattern = Regex::new(r"://[^/:\s]+:[^/@\s]+@").expect("valid regex");
+    pattern.is_match(value)
+}
+
 fn is_expression(value: &str) -> bool {
     value.contains("${{") && value.contains("}}")
 }
@@ -170,6 +178,22 @@ pub fn audit_project(
                         location.as_ref().and_then(|(path, _)| path.clone()),
                         location.and_then(|(_, line)| line),
                     );
+                }
+                if is_credential_url(value) {
+                    let location = variable
+                        .winner
+                        .as_ref()
+                        .map(|winner| (winner.path.clone(), winner.line));
+                    issues.push(AuditIssue::new(
+                        Severity::Error,
+                        "credential-in-url",
+                        format!(
+                            "{} embeds credentials in a URL; rotate them and move to a secret reference",
+                            variable.variable
+                        ),
+                        location.as_ref().and_then(|(path, _)| path.clone()),
+                        location.and_then(|(_, line)| line),
+                    ));
                 }
             }
             for candidate in &variable.candidates {
@@ -294,6 +318,22 @@ pub fn audit_workflow(
                         location.and_then(|(_, line)| line),
                     );
                 }
+                if is_credential_url(value) && !is_expression(value) {
+                    let location = variable
+                        .winner
+                        .as_ref()
+                        .map(|winner| (winner.path.clone(), winner.line));
+                    issues.push(AuditIssue::new(
+                        Severity::Error,
+                        "credential-in-url",
+                        format!(
+                            "{} embeds credentials in a URL; rotate them and move to a secret reference",
+                            variable.variable
+                        ),
+                        location.as_ref().and_then(|(path, _)| path.clone()),
+                        location.and_then(|(_, line)| line),
+                    ));
+                }
             }
             for candidate in &variable.candidates {
                 if candidate.disposition == ActionsDisposition::Shadowed
@@ -398,6 +438,19 @@ where
                 location.as_ref().and_then(|(path, _)| path.clone()),
                 location.and_then(|(_, line)| line),
             );
+        }
+        if is_credential_url(value) {
+            let location = variable.winner_location();
+            issues.push(AuditIssue::new(
+                Severity::Error,
+                "credential-in-url",
+                format!(
+                    "{} embeds credentials in a URL; rotate them and move to a secret reference",
+                    variable.name()
+                ),
+                location.as_ref().and_then(|(path, _)| path.clone()),
+                location.and_then(|(_, line)| line),
+            ));
         }
     }
     for (path, line) in variable.shadowed_lines() {
