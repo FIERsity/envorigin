@@ -310,6 +310,17 @@ only in ./local (1):
   web.ONLY_A = "a_value"
 ```
 
+Both modes support `--format json` (machine-readable; sensitive values stay
+redacted unless `--show-values`) and `--fail-on-drift`, which exits 1 when any
+variable carries different values — a CI gate that catches environments
+drifting apart:
+
+```yaml
+# ci/drift.yml — fail the pipeline when local and prod diverge
+steps:
+  - run: envorigin diff --project-a ./local --project-b ./prod --fail-on-drift --format json
+```
+
 ### `diff` (dotenv files)
 
 Compare dotenv files for environment drift — the same variable with different

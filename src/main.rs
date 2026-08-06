@@ -17,7 +17,9 @@ use envorigin::cli::{
     ActionsCommand, CircleciCommand, Cli, Command, CommonArgs, FailLevel, GitlabCommand,
     OutputFormat,
 };
-use envorigin::diff::{diff_files, diff_human, diff_json, diff_projects, project_diff_human};
+use envorigin::diff::{
+    diff_files, diff_human, diff_json, diff_projects, project_diff_human, project_diff_json,
+};
 use envorigin::gitlab::{
     analyze_gitlab, gitlab_human, gitlab_json, gitlab_variable_human, gitlab_variable_json,
 };
@@ -249,10 +251,8 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
-    let outcome = |output: String| RunOutcome {
-        output,
-        exit_code: ExitCode::SUCCESS,
-    };
+    let outcome_with_code = |output: String, exit_code: ExitCode| RunOutcome { output, exit_code };
+    let outcome = |output: String| outcome_with_code(output, ExitCode::SUCCESS);
     match cli.command {
         Command::Scan(args) => {
             let report = analyze(&options(&args.common))?;
@@ -331,19 +331,44 @@ fn run(cli: Cli) -> Result<RunOutcome, AnalysisError> {
                     ..AnalyzeOptions::default()
                 })?;
                 let entries = diff_projects(&report_a, &report_b);
-                return Ok(outcome(project_diff_human(
-                    &a.display().to_string(),
-                    &b.display().to_string(),
-                    &entries,
-                    args.show_values,
-                )));
+                let drifted = entries.iter().any(|entry| {
+                    entry.values[0].is_some()
+                        && entry.values[1].is_some()
+                        && entry.values[0] != entry.values[1]
+                });
+                let output = match args.format {
+                    OutputFormat::Json => project_diff_json(&entries, args.show_values),
+                    OutputFormat::Human | OutputFormat::Github => project_diff_human(
+                        &a.display().to_string(),
+                        &b.display().to_string(),
+                        &entries,
+                        args.show_values,
+                    ),
+                };
+                return Ok(outcome_with_code(
+                    output,
+                    if args.fail_on_drift && drifted {
+                        ExitCode::FAILURE
+                    } else {
+                        ExitCode::SUCCESS
+                    },
+                ));
             }
             let report = diff_files(&args.files)?;
-            Ok(outcome(match args.format {
+            let drifted = !report.drifts().is_empty();
+            let output = match args.format {
                 OutputFormat::Human => diff_human(&report, args.show_values),
                 OutputFormat::Github => diff_human(&report, args.show_values),
                 OutputFormat::Json => diff_json(&report, args.show_values),
-            }))
+            };
+            Ok(outcome_with_code(
+                output,
+                if args.fail_on_drift && drifted {
+                    ExitCode::FAILURE
+                } else {
+                    ExitCode::SUCCESS
+                },
+            ))
         }
         Command::Graph(args) => {
             let report = analyze(&options(&args.common))?;

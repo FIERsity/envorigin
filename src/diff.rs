@@ -156,6 +156,26 @@ pub fn diff_projects(
         .collect()
 }
 
+/// Machine-readable project diff: same shape as `ProjectDiffEntry` with
+/// sensitive-looking values fingerprinted unless `--show-values` is passed.
+pub fn project_diff_json(entries: &[ProjectDiffEntry], show_values: bool) -> String {
+    let entries: Vec<ProjectDiffEntry> = entries
+        .iter()
+        .cloned()
+        .map(|mut entry| {
+            if !show_values {
+                for value in entry.values.iter_mut().flatten() {
+                    if is_sensitive(&entry.variable) {
+                        *value = fingerprint(value);
+                    }
+                }
+            }
+            entry
+        })
+        .collect();
+    serde_json::to_string_pretty(&entries).expect("ProjectDiffEntry is serializable")
+}
+
 pub fn project_diff_human(
     a_label: &str,
     b_label: &str,
