@@ -86,6 +86,7 @@ Commands:
   actions  Analyze a GitHub Actions workflow's environment variables
   lsp      Start the LSP server (for editor integration)
   completions  Generate a shell completion script
+  init      Generate an envorigin.toml rules template
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -228,6 +229,9 @@ remove ignores as problems get fixed.
 never printed — the audit can run on repositories holding real credentials.
 
 ### Rules (`envorigin.toml`)
+
+`envorigin init` writes a commented rules template (all six rule types)
+into the current directory; it never overwrites an existing file.
 
 Turn team conventions into enforced audit checks. Any audit command
 (`audit`, `actions audit`, `gitlab audit`, `circleci audit`) loads
@@ -405,7 +409,7 @@ caching needed.
 cargo test
 ```
 
-102 tests: unit tests for the dotenv parser, the interpolator, Compose
+103 tests: unit tests for the dotenv parser, the interpolator, Compose
 normalization, the Docker canonical extraction, the Actions layer
 resolution, and the audit checks; plus end-to-end CLI tests against
 `tests/fixtures/{basic,precedence,raw,env-files,actions,actions-inputs,audit}`

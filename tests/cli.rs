@@ -999,3 +999,31 @@ fn audit_ignore_github_format_filters_annotations() {
         .stdout(predicate::str::contains("::error").not())
         .stdout(predicate::str::contains("::warning"));
 }
+
+#[test]
+fn init_writes_template_and_does_not_overwrite() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .current_dir(dir.path())
+        .arg("init")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("wrote envorigin.toml"));
+    let content = std::fs::read_to_string(dir.path().join("envorigin.toml")).unwrap();
+    assert!(content.contains("required = [\"DATABASE_URL\""));
+    assert!(content.contains("[max_length]"));
+
+    // Second run leaves the file untouched.
+    let mut command = Command::cargo_bin("envorigin").unwrap();
+    command
+        .current_dir(dir.path())
+        .arg("init")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("already exists"));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("envorigin.toml")).unwrap(),
+        content
+    );
+}
