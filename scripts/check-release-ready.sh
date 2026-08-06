@@ -19,20 +19,20 @@ fail() {
   exit 1
 }
 
-echo "==> 1/7 working tree clean"
+echo "==> 1/8 working tree clean"
 [[ -z "$(git status --porcelain)" ]] || fail "working tree is not clean"
 echo "    ok ($(git log --oneline -1))"
 
-echo "==> 2/7 tests"
+echo "==> 2/8 tests"
 cargo test --quiet || fail "tests"
 
-echo "==> 3/7 clippy (-D warnings)"
+echo "==> 3/8 clippy (-D warnings)"
 cargo clippy --all-targets -- -D warnings || fail "clippy"
 
-echo "==> 4/7 formatting"
+echo "==> 4/8 formatting"
 cargo fmt --check || fail "fmt"
 
-echo "==> 5/7 release.sh syntax"
+echo "==> 5/8 release.sh syntax"
 bash -n scripts/release.sh || fail "release.sh syntax"
 
 echo "==> 6/7 workflows (actionlint)"
@@ -42,7 +42,14 @@ else
   echo "    skipped (actionlint not installed)"
 fi
 
-echo "==> 7/7 VS Code extension packages"
+echo "==> 7/8 dependencies (cargo audit, RustSec)"
+if command -v cargo-audit > /dev/null 2>&1; then
+  cargo audit --quiet || fail "cargo audit"
+else
+  echo "    skipped (cargo-audit not installed; cargo install cargo-audit)"
+fi
+
+echo "==> 8/8 VS Code extension packages"
 if command -v npx > /dev/null 2>&1; then
   (cd vscode && npx --yes --cache /tmp/npm-cache-env @vscode/vsce package --no-dependencies --out /tmp/envorigin-ready.vsix > /dev/null 2>&1) \
     || fail "vsce package"
