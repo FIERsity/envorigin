@@ -25,6 +25,10 @@ All notable changes to EnvOrigin are documented here. The format follows
 - `empty-value` audit info — a variable that resolves to an empty string,
   usually an accidental stub; all five audit entry points.
 - Dependabot — weekly cargo and GitHub Actions updates (grouped).
+- `scripts/validate-real-repos.sh` — one-command regression sweep against
+  live repositories (outline/cargo/uv): 51 workflow audits without
+  panics, no `empty-value` noise, `--debug` trace resolution, and stable
+  known-good findings.
 
 ## [1.10.0] - 2026-08-06
 

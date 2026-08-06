@@ -602,6 +602,13 @@ Each audit command targets its own platform's config file by default
 
 ## Real-world example
 
+Regression validation against live open-source repositories is one
+command — `scripts/validate-real-repos.sh` clones outline, cargo, and uv
+(shallow), sweeps all 51 of their workflow files for panics and noise,
+checks `explain --debug` traces on multi-layer workflows, and pins the
+known-good findings (outline's CI embeds test credentials and must keep
+flagging them).
+
 Running the released binary against [outline](https://github.com/outline/outline)'s
 `docker-compose.yml` (production knowledge-base app) with its `.env`:
 
