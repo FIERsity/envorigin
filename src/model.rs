@@ -139,6 +139,8 @@ pub struct Explanation {
 pub struct ServiceReport {
     pub name: String,
     pub variables: Vec<Explanation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

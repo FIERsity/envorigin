@@ -228,6 +228,11 @@ pub fn audit_project(
     for diagnostic in &report.diagnostics {
         issues.push(AuditIssue::from(diagnostic));
     }
+    for service in &report.services {
+        for diagnostic in &service.diagnostics {
+            issues.push(AuditIssue::from(diagnostic));
+        }
+    }
 
     let mut consumed: HashSet<&str> = HashSet::new();
     // Original file texts: interpolated values lose the expression text, so
