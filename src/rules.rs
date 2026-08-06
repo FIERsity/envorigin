@@ -26,6 +26,10 @@ pub struct Rules {
     pub forbidden: Vec<String>,
     /// Per-variable value format validation (regex, matched with `is_match`).
     pub patterns: BTreeMap<String, String>,
+    /// Per-variable allowed-value whitelists.
+    pub allowed: BTreeMap<String, Vec<String>>,
+    /// Per-variable maximum value length.
+    pub max_length: BTreeMap<String, usize>,
 }
 
 impl Rules {
@@ -85,6 +89,40 @@ pub fn check_rules(variables: &[(String, Option<String>)], rules: &Rules) -> Vec
                 None,
                 None,
             ));
+        }
+    }
+    for (variable_name, allowed) in &rules.allowed {
+        if let Some((_, Some(value))) = variables
+            .iter()
+            .find(|variable| variable.0.as_str() == variable_name)
+        {
+            if !allowed.iter().any(|candidate| candidate == value) {
+                issues.push(AuditIssue::new(
+                    Severity::Error,
+                    "disallowed-value",
+                    format!("{variable_name} value is not in the allowed set from envorigin.toml"),
+                    None,
+                    None,
+                ));
+            }
+        }
+    }
+    for (variable_name, max) in &rules.max_length {
+        if let Some((_, Some(value))) = variables
+            .iter()
+            .find(|variable| variable.0.as_str() == variable_name)
+        {
+            if value.chars().count() > *max {
+                issues.push(AuditIssue::new(
+                    Severity::Error,
+                    "value-too-long",
+                    format!(
+                        "{variable_name} exceeds the maximum length of {max} from envorigin.toml"
+                    ),
+                    None,
+                    None,
+                ));
+            }
         }
     }
     for (variable_name, pattern) in &rules.patterns {
@@ -176,5 +214,36 @@ mod tests {
         let variables = vec![("X".to_string(), Some("value".to_string()))];
         let issues = check_rules(&variables, &rules);
         assert_eq!(issues[0].code, "invalid-pattern");
+    }
+}
+
+#[cfg(test)]
+mod more_tests {
+    use super::*;
+
+    #[test]
+    fn allowed_values_and_max_length_are_enforced() {
+        let rules = Rules {
+            allowed: BTreeMap::from([(
+                "LOG_LEVEL".to_string(),
+                vec!["debug".to_string(), "info".to_string()],
+            )]),
+            max_length: BTreeMap::from([("API_KEY".to_string(), 8)]),
+            ..Rules::default()
+        };
+        let variables = vec![
+            ("LOG_LEVEL".to_string(), Some("verbose".to_string())),
+            ("API_KEY".to_string(), Some("way_too_long_key".to_string())),
+        ];
+        let issues = check_rules(&variables, &rules);
+        assert_eq!(issues.len(), 2);
+        assert_eq!(issues[0].code, "disallowed-value");
+        assert_eq!(issues[1].code, "value-too-long");
+
+        let ok = vec![
+            ("LOG_LEVEL".to_string(), Some("info".to_string())),
+            ("API_KEY".to_string(), Some("short".to_string())),
+        ];
+        assert!(check_rules(&ok, &rules).is_empty());
     }
 }
