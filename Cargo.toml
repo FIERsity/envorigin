@@ -1,6 +1,6 @@
 [package]
 name = "envorigin"
-version = "1.11.0"
+version = "1.12.0"
 edition = "2021"
 description = "Explain where environment variables come from — Docker Compose, GitHub Actions, GitLab CI, CircleCI"
 license = "MIT"
