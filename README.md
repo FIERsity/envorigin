@@ -41,8 +41,16 @@ candidates:
 Values are redacted by default — you get a short SHA-256 fingerprint instead of
 the secret. Pass `--show-values` only when you mean it.
 
-## Why
+## At a glance
 
+| Item | Verified value |
+|---|---|
+| Purpose | Explain environment-variable provenance across Docker Compose and CI workflows |
+| Current release | 1.12.0 |
+| Install options | crates.io, Homebrew, source build, GitHub Releases |
+| License | MIT |
+
+## Overview
 Docker's own precedence rules are subtle and their failure modes are loud:
 
 | Layer (low → high) | Writes a value | Notes |
@@ -63,8 +71,8 @@ Two consequences that bite teams every week:
    `env_file`, Compose gives you no hint that the env_file line is dead code.
    EnvOrigin marks it `shadowed` so you can delete it with confidence.
 
-## Install
 
+## Installation
 ```sh
 cargo install envorigin            # crates.io
 brew install FIERsity/envorigin/envorigin  # Homebrew
@@ -91,8 +99,8 @@ chmod +x envorigin
 
 Requires Rust 1.86+.
 
-## Quick start
 
+## Quick Start
 ```sh
 brew install FIERsity/tap/envorigin      # or: cargo install envorigin
 cd your-project
@@ -141,8 +149,8 @@ Values are hidden by default — pass `--show-values` when you mean it.
 The backend-prefixed commands (`envorigin gitlab audit`, …) remain for
 when you want to pin the format explicitly.
 
-## Usage
 
+## Usage
 ```text
 EnvOrigin 1.12.0
 Explain where environment variables come from
@@ -544,8 +552,8 @@ Unsaved buffer edits are analyzed in memory — hover and diagnostics track
 the buffer, while relative references still resolve against the real file
 location.
 
-## Design
 
+## Design
 - **`src/compose.rs`** — Compose model (env_file specs, environment forms) and
   per-variable candidate resolution in Compose's own order.
 - **`src/interpolation.rs`** — a Compose-flavored interpolator: `$VAR`,
@@ -574,15 +582,15 @@ Semantics notes:
   mixed with regular keys in one `env:` block — EnvOrigin applies the file
   layer after the map (same order as Compose `env_file`).
 
-## Performance
 
+## Performance
 A synthetic project with 800 variables across 4 services plus 4 env files
 (821-line compose) scans in ~0.3 s and audits in ~2.4 s (debug build;
 release builds are several times faster) — linear in input size, no
 caching needed.
 
-## Testing
 
+## Development and Testing
 ```sh
 cargo test
 ```
@@ -598,8 +606,8 @@ expression-reference resolution, and audit exit codes. CI runs `fmt` +
 `clippy -D warnings` + tests on Ubuntu, and audits its own workflow
 (dogfood).
 
-## Roadmap
 
+## Roadmap
 **Phase 1 — doctor mode (in progress)**
 - [x] `audit` with sensitive-value, shadowed-dead-code, unused-variable checks
 - [x] `--fail-on` CI gate + dogfooding EnvOrigin's own workflow
@@ -640,8 +648,8 @@ envorigin completions zsh   > ~/.zfunc/_envorigin
 envorigin completions fish  > ~/.config/fish/completions/envorigin.fish
 ```
 
-## CI integration
 
+## CI integration
 `audit` is built to gate pipelines: `--format json` for parsing,
 `--fail-on <level>` for the exit code. Wire it into any of the three CI
 platforms EnvOrigin understands:
@@ -693,8 +701,8 @@ Each audit command targets its own platform's config file by default
 (`compose.yaml`, `.github/workflows/ci.yml`, `.gitlab-ci.yml`,
 `.circleci/config.yml`) and applies `envorigin.toml` rules automatically.
 
-## Real-world example
 
+## Real-world example
 Regression validation against live open-source repositories is one
 command — `scripts/validate-real-repos.sh` clones outline, cargo, uv, and
 two GitLab-hosted repos (glab, fdroid) shallow, sweeps 51 workflow files
@@ -734,11 +742,12 @@ candidates:
   - [winner] service environment (docker-compose.yml:13) = <redacted sha256:d74ff0ee>
 ```
 
-## Release
 
+## Release
 `./scripts/release.sh <version>` tags, creates the GitHub release, publishes to
 crates.io, and updates the Homebrew formula in one run.
 
-## License
 
+## License
 MIT
+
